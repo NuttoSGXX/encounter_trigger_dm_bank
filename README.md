@@ -8,7 +8,7 @@ Foundry VTT **V14** + **dnd5e** — ปุ่มเริ่ม Encounter แบ
 2. วาง Manifest URL ช่อง *Manifest URL* ด้านล่างสุด แล้วกด Install
 
 ```
-https://github.com/YOUR_USERNAME/encounter-fx/releases/latest/download/module.json
+https://github.com/NuttoSGXX/encounter-fx/releases/latest/download/module.json
 ```
 
 3. เปิดใช้ในเวิลด์ แล้วกดปุ่มไฟ (Encounter FX) ในแถบ Token Controls (GM เท่านั้น)
