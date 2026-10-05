@@ -32,17 +32,16 @@
 .efx-track i { font-style: normal; color: #ff5a1f; }
 @keyframes efx-marquee { to { transform: translateX(-50%); } }
 
-/* Title: typewriter -> slam -> fire glow */
+/* Title: typewriter -> slam -> white text with fire glow */
 .efx-title {
   display: flex; justify-content: center; margin: .05em 0; line-height: 1.05; white-space: nowrap;
   font: 900 clamp(4rem, 13vw, 12rem)/1 "Cinzel", "Impact", sans-serif; letter-spacing: .1em;
-  filter: drop-shadow(0 0 6px #ff9d1f) drop-shadow(0 0 22px #ff4d00);
+  color: #fff;
 }
 .efx-title .ch {
   display: inline-block; opacity: 0; transform: translateY(-.2em) scale(1.5);
-  background: linear-gradient(180deg, #fffbe0 0%, #ffd34a 28%, #ff8a14 60%, #d92b05 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  -webkit-text-stroke: 2px rgba(70, 8, 0, .85); paint-order: stroke fill;
+  color: #fff;
+  text-shadow: 0 0 4px #fff, 0 0 14px #fff6d8, 0 0 30px #ffb347, 0 0 60px #ff6a1a, 0 0 110px #ff3d00;
 }
 .efx-title .ch.on { opacity: 1; transform: none; transition: transform .08s ease-out, opacity .03s; }
 .efx-title.slam { animation: efx-slam .55s cubic-bezier(.2, .8, .2, 1) both; }
@@ -54,10 +53,10 @@
   82%  { transform: scale(.985); }
   100% { transform: scale(1); }
 }
-.efx-title.glow { animation: efx-glow 1.5s ease-in-out infinite alternate; }
+.efx-title.glow .ch { animation: efx-glow 1.5s ease-in-out infinite alternate; }
 @keyframes efx-glow {
-  from { filter: drop-shadow(0 0 6px #ff9d1f) drop-shadow(0 0 20px #ff4d00) drop-shadow(0 0 50px #b81d00); }
-  to   { filter: drop-shadow(0 0 12px #ffc04a) drop-shadow(0 0 38px #ff5a0a) drop-shadow(0 0 90px #ff2a00); }
+  from { text-shadow: 0 0 4px #fff, 0 0 12px #fff6d8, 0 0 26px #ffb347, 0 0 52px #ff6a1a, 0 0 90px #ff3d00; }
+  to   { text-shadow: 0 0 6px #fff, 0 0 20px #fff6d8, 0 0 44px #ffc04a, 0 0 86px #ff5a0a, 0 0 150px #ff2a00; }
 }
 
 /* impact: shake + flash + shockwave */
