@@ -1,0 +1,14 @@
+{
+  "id": "encounter-fx",
+  "title": "Encounter FX",
+  "description": "ปุ่มเริ่ม Encounter แบบ Immersive: ย้ายซีน, ไฟเผาจอ, แบนเนอร์ ENCOUNTER, d20 3D ทอย Initiative เชื่อมกับ Combat ของ dnd5e",
+  "version": "0.1.0",
+  "compatibility": { "minimum": "14", "verified": "14" },
+  "authors": [{ "name": "Thapanapong" }],
+  "esmodules": ["scripts/main.js"],
+  "styles": ["styles/encounter-fx.css"],
+  "relationships": {
+    "systems": [{ "id": "dnd5e", "type": "system", "compatibility": { "minimum": "6.0.0" } }]
+  },
+  "socket": true
+}

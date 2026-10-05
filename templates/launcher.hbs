@@ -1,0 +1,43 @@
+<div class="efx-form">
+  <div class="form-group">
+    <label>ย้ายไปซีน</label>
+    <div class="form-fields">
+      <select name="sceneId">
+        {{#each scenes}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}{{#if active}} (Active){{/if}}</option>{{/each}}
+      </select>
+    </div>
+  </div>
+
+  <fieldset>
+    <legend>ผู้เล่นที่ดึงเข้า Combat</legend>
+    <div class="efx-actors">
+      {{#each actors}}
+      <label class="efx-actor">
+        <input type="checkbox" name="actor" value="{{id}}" {{#if checked}}checked{{/if}}>
+        <img src="{{img}}" alt="">
+        <span>{{name}}</span>
+      </label>
+      {{else}}
+      <p class="notes">ไม่พบตัวละครผู้เล่น (type: character ที่มีเจ้าของ)</p>
+      {{/each}}
+    </div>
+  </fieldset>
+
+  <div class="form-group">
+    <label>เพิ่มศัตรู (Hostile) ในซีน</label>
+    <div class="form-fields"><input type="checkbox" name="hostile" checked></div>
+  </div>
+  <div class="form-group">
+    <label>กด Start Combat ให้หลังประกาศลำดับ</label>
+    <div class="form-fields"><input type="checkbox" name="autostart" checked></div>
+  </div>
+
+  <div class="form-group stacked">
+    <label>ข้อความวิ่ง (บรรทัดละ 1 ข้อความ)</label>
+    <textarea name="phrases" rows="6">{{phrases}}</textarea>
+  </div>
+
+  <footer class="form-footer">
+    <button type="submit"><i class="fa-solid fa-fire"></i> เริ่ม Encounter</button>
+  </footer>
+</div>
