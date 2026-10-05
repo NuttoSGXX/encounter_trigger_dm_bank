@@ -2,13 +2,22 @@
 
 Foundry VTT **V14** + **dnd5e** — ปุ่มเริ่ม Encounter แบบ Immersive: ย้ายซีน, ไฟเผาจอ, แบนเนอร์ ENCOUNTER, d20 3D ทอย Initiative เชื่อมกับ Combat ของ dnd5e
 
+## การทำงาน
+
+1. GM กดปุ่มไฟ → เลือกซีน + ผู้เล่นที่จะเข้า Combat
+2. ไฟ CG ลามเต็มจอ → ย้ายซีน → พิมพ์ `ENCOUNTER` ทีละตัวแล้วกระแทกลงจอ
+3. เต๋า d20 ขึ้นจอ 1 ลูกต่อผู้เล่น ทุกคนกดทอยของตัวเองพร้อมกันได้ (NPC ทอยเงียบๆ หลังบ้าน)
+4. ทอยครบ → สรุปลำดับ Initiative → เริ่ม Combat อัตโนมัติ
+
+ข้อความวิ่ง (Imminent Danger ฯลฯ) แก้ได้ที่ค่าคงที่ `PHRASES` บนสุดของ `scripts/main.js`
+
 ## ติดตั้ง
 
 1. Foundry → **Add-on Modules** → **Install Module**
 2. วาง Manifest URL ช่อง *Manifest URL* ด้านล่างสุด แล้วกด Install
 
 ```
-https://github.com/NuttoSGXX/encounter-fx/releases/latest/download/module.json
+https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/latest/download/module.json
 ```
 
 3. เปิดใช้ในเวิลด์ แล้วกดปุ่มไฟ (Encounter FX) ในแถบ Token Controls (GM เท่านั้น)

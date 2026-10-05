@@ -2,96 +2,143 @@
 #efx-root * { box-sizing: border-box; }
 
 /* ---------- Launcher ---------- */
-.efx-actors { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 12px; max-height: 200px; overflow-y: auto; }
+.efx-actors { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 12px; max-height: 220px; overflow-y: auto; }
 .efx-actor { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .efx-actor img { width: 28px; height: 28px; border: none; border-radius: 4px; object-fit: cover; }
-.efx-form .stacked { flex-direction: column; align-items: stretch; }
 
-/* ---------- Intro (fire + banner) ---------- */
-.efx-intro { position: absolute; inset: 0; overflow: hidden; transition: opacity 1s ease; }
-.efx-intro.leave { opacity: 0; }
-.efx-fill {
-  position: absolute; inset: 0; transform: translateY(100%);
-  background: linear-gradient(to top, #ffb347 0%, #e8480c 14%, #8a1405 38%, #2a0603 72%, #090101 100%);
-  transition: transform 1.4s cubic-bezier(.5, 0, .2, 1); opacity: .95;
-}
-.efx-intro.rise .efx-fill { transform: translateY(0); }
-.efx-fire { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 1s; }
-.efx-intro.leave .efx-fire { opacity: 0; }
-.efx-vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.75) 100%); }
+/* ================= INTRO ================= */
+.efx-intro { position: absolute; inset: 0; overflow: hidden; }
+.efx-dim { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(25,4,0,.35), rgba(8,0,0,.8)); opacity: 0; transition: opacity 1.2s ease; }
+.efx-intro.on .efx-dim { opacity: 1; }
+.efx-intro.leave .efx-dim { opacity: 0; transition-duration: 1.4s; }
+.efx-shaker { position: absolute; inset: 0; }
+.efx-fire, .efx-sparks { position: absolute; inset: 0; width: 100%; height: 100%; }
+.efx-intro.leave .efx-banner { opacity: 0; transition: opacity .9s ease; }
 
-.efx-banner { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; transition: opacity .2s; }
-.efx-intro.show .efx-banner { opacity: 1; }
+.efx-banner { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); }
 .efx-band {
   overflow: hidden; white-space: nowrap; padding: .45em 0;
-  background: rgba(0,0,0,.7); border-block: 2px solid #ff9d3c;
+  background: rgba(10, 0, 0, .78); border-block: 2px solid #ff9d3c;
   font: 700 1.5rem/1 "Cinzel", "Impact", "Noto Sans Thai", sans-serif; letter-spacing: .28em; color: #ffd9a0; text-transform: uppercase;
-  transform: scaleX(0); transition: transform .5s .1s ease-out;
-  box-shadow: 0 0 25px rgba(255, 90, 20, .6);
+  transform: scaleX(0); transition: transform .28s cubic-bezier(.2, .9, .3, 1);
+  box-shadow: 0 0 30px rgba(255, 90, 20, .7);
 }
-.efx-intro.show .efx-band { transform: scaleX(1); }
+.efx-band-top { transform-origin: left center; }
+.efx-band-bot { transform-origin: right center; }
+.efx-intro.impact .efx-band { transform: scaleX(1); }
 .efx-track { display: inline-flex; animation: efx-marquee var(--dur, 30s) linear infinite; }
 .efx-band-bot .efx-track { animation-direction: reverse; }
 .efx-track span { padding: 0 1.1em; }
 .efx-track i { font-style: normal; color: #ff5a1f; }
 @keyframes efx-marquee { to { transform: translateX(-50%); } }
 
+/* Title: typewriter -> slam -> fire glow */
 .efx-title {
-  text-align: center; margin: .1em 0; line-height: 1.05;
-  font: 900 clamp(4rem, 13vw, 12rem)/1 "Cinzel", "Impact", sans-serif; letter-spacing: .12em; color: #fff3d6;
-  text-shadow: 0 0 10px #ffb347, 0 0 36px #ff4d00, 0 0 90px #ff3d00;
-  animation: efx-flicker 1.2s steps(1) infinite;
+  display: flex; justify-content: center; margin: .05em 0; line-height: 1.05; white-space: nowrap;
+  font: 900 clamp(4rem, 13vw, 12rem)/1 "Cinzel", "Impact", sans-serif; letter-spacing: .1em;
+  filter: drop-shadow(0 0 6px #ff9d1f) drop-shadow(0 0 22px #ff4d00);
 }
-.efx-title span { display: inline-block; opacity: 0; transform: scale(2.6); transition: transform .35s cubic-bezier(.2, 2, .4, 1), opacity .2s; }
-.efx-intro.show .efx-title span { opacity: 1; transform: scale(1); }
-@keyframes efx-flicker {
-  0% { opacity: 1 } 8% { opacity: .3 } 11% { opacity: 1 } 38% { opacity: 1 } 41% { opacity: .45 }
-  44% { opacity: 1 } 70% { opacity: .85 } 73% { opacity: 1 } 90% { opacity: .4 } 93% { opacity: 1 }
+.efx-title .ch {
+  display: inline-block; opacity: 0; transform: translateY(-.2em) scale(1.5);
+  background: linear-gradient(180deg, #fffbe0 0%, #ffd34a 28%, #ff8a14 60%, #d92b05 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 2px rgba(70, 8, 0, .85); paint-order: stroke fill;
+}
+.efx-title .ch.on { opacity: 1; transform: none; transition: transform .08s ease-out, opacity .03s; }
+.efx-title.slam { animation: efx-slam .55s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes efx-slam {
+  0%   { transform: scale(1) translateY(0); }
+  35%  { transform: scale(1.75) translateY(-.08em); }
+  52%  { transform: scale(.9) translateY(.03em); }
+  66%  { transform: scale(1.06); }
+  82%  { transform: scale(.985); }
+  100% { transform: scale(1); }
+}
+.efx-title.glow { animation: efx-glow 1.5s ease-in-out infinite alternate; }
+@keyframes efx-glow {
+  from { filter: drop-shadow(0 0 6px #ff9d1f) drop-shadow(0 0 20px #ff4d00) drop-shadow(0 0 50px #b81d00); }
+  to   { filter: drop-shadow(0 0 12px #ffc04a) drop-shadow(0 0 38px #ff5a0a) drop-shadow(0 0 90px #ff2a00); }
 }
 
-/* ---------- Dice stage ---------- */
-.efx-dice-stage { position: absolute; inset: 0; display: grid; place-items: center; animation: efx-fadein .6s ease both; }
-.efx-dice-stage .efx-backdrop { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(20,4,0,.78), rgba(0,0,0,.9)); }
+/* impact: shake + flash + shockwave */
+.efx-flash { position: absolute; inset: 0; background: radial-gradient(circle, #fff 0%, #ffd27a 40%, transparent 75%); opacity: 0; }
+.efx-intro.impact .efx-flash { animation: efx-flash .45s ease-out; }
+@keyframes efx-flash { 0% { opacity: .95; } 100% { opacity: 0; } }
+.efx-intro.impact .efx-shaker { animation: efx-shake .5s linear; }
+@keyframes efx-shake {
+  0% { transform: translate(0, 0) scale(1.02); } 10% { transform: translate(-14px, 9px) scale(1.04); } 20% { transform: translate(12px, -10px) scale(1.04); }
+  30% { transform: translate(-10px, -6px) scale(1.03); } 45% { transform: translate(8px, 7px) scale(1.03); }
+  60% { transform: translate(-5px, 3px) scale(1.02); } 80% { transform: translate(3px, -2px) scale(1.01); } 100% { transform: none; }
+}
+.efx-ring { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 6px solid #ffd27a; opacity: 0; pointer-events: none; }
+.efx-intro.impact .efx-shaker > .efx-ring { animation: efx-ring .8s ease-out; }
+@keyframes efx-ring { 0% { opacity: .95; transform: scale(1); border-width: 10px; } 100% { opacity: 0; transform: scale(48); border-width: 1px; } }
+
+/* ================= DICE STAGE ================= */
+.efx-dice-stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2rem; animation: efx-fadein .7s ease both; transition: opacity .8s ease; }
+.efx-dice-stage.leaving { opacity: 0; }
 @keyframes efx-fadein { from { opacity: 0 } to { opacity: 1 } }
-.efx-dice-wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-.efx-scene3d { perspective: 900px; width: 300px; height: 300px; display: grid; place-items: center; transition: opacity .5s, transform .5s; }
-.efx-dice-stage.ordered .efx-scene3d,
-.efx-dice-stage.ordered .efx-result,
-.efx-dice-stage.ordered .efx-hint { display: none; }
+.efx-dice-stage .efx-backdrop { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(28,6,0,.82), rgba(0,0,0,.93)); }
+.efx-dice-stage .efx-sparks { z-index: 2; }
+.efx-headline { position: relative; z-index: 1; font: 900 clamp(1.4rem, 3vw, 2.4rem) "Cinzel", Impact, sans-serif; letter-spacing: .35em; color: #ffd9a0; text-shadow: 0 0 14px #ff5a0a, 0 0 40px #ff3d00; }
+.efx-dice-row { position: relative; z-index: 1; display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem 1rem; max-width: 96vw; transition: opacity .6s, transform .6s; }
+.efx-dice-stage.ordered .efx-dice-row, .efx-dice-stage.ordered .efx-headline { display: none; }
+
+.efx-slot { position: relative; display: flex; flex-direction: column; align-items: center; font-family: "Noto Sans Thai", sans-serif; }
+.efx-aura { position: absolute; top: 4%; left: 50%; width: 70%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,150,40,.55), rgba(255,60,0,.15) 60%, transparent 72%); transition: opacity .4s; }
+.efx-slot.mine .efx-aura { opacity: 1; animation: efx-aura 1.6s ease-in-out infinite; }
+.efx-slot.charging .efx-aura { animation: efx-aura .25s ease-in-out infinite; background: radial-gradient(circle, rgba(255,230,150,.9), rgba(255,90,0,.35) 60%, transparent 72%); }
+.efx-slot.rolling .efx-aura { opacity: 1; animation: none; transform: translateX(-50%) scale(1.35); background: radial-gradient(circle, rgba(255,200,90,.8), rgba(255,70,0,.25) 60%, transparent 72%); }
+.efx-slot.landed .efx-aura { opacity: .55; animation: none; }
+.efx-slot.crit .efx-aura { opacity: 1; background: radial-gradient(circle, rgba(255,240,150,.95), rgba(255,190,40,.4) 60%, transparent 74%); transform: translateX(-50%) scale(1.5); }
+.efx-slot.fumble .efx-aura { opacity: 1; background: radial-gradient(circle, rgba(200,0,0,.6), rgba(60,0,0,.3) 60%, transparent 74%); }
+@keyframes efx-aura { 50% { transform: translateX(-50%) scale(1.22); opacity: .65; } }
+.efx-slot:not(.mine) .efx-scene3d { opacity: .72; }
+.efx-slot.fumble { animation: efx-fumble .5s linear; }
+@keyframes efx-fumble { 20% { transform: translateX(-9px) } 40% { transform: translateX(8px) } 60% { transform: translateX(-5px) } 80% { transform: translateX(3px) } }
+
+.efx-scene3d { position: relative; display: grid; place-items: center; }
 .efx-bounce { position: relative; width: 0; height: 0; transform-style: preserve-3d; }
 .efx-die { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; }
 .efx-die.idle { animation: efx-idle 10s linear infinite; }
 .efx-die.gm { cursor: pointer; }
 @keyframes efx-idle { to { transform: rotate3d(1, 1, .3, 360deg); } }
-.efx-face {
-  position: absolute; left: 0; top: 0; transform-origin: 0 0; backface-visibility: hidden;
-  clip-path: polygon(50% 0, 0 100%, 100% 100%); pointer-events: auto;
-}
-.efx-face b { position: absolute; left: 50%; top: 66.6%; transform: translate(-50%, -50%); font: 700 28px/1 Georgia, serif; color: #ffe9b8; text-shadow: 0 0 6px #000; }
-.efx-hint { color: #ffd9a0; font: 600 1.2rem "Noto Sans Thai", sans-serif; letter-spacing: .08em; animation: efx-pulse 1.4s ease-in-out infinite; text-shadow: 0 0 10px #ff6a1f; min-height: 1.6em; }
-@keyframes efx-pulse { 50% { opacity: .35; } }
+.efx-face { position: absolute; left: 0; top: 0; transform-origin: 0 0; backface-visibility: hidden; clip-path: polygon(50% 0, 0 100%, 100% 100%); pointer-events: auto; }
+.efx-face b { position: absolute; left: 50%; top: 66.6%; transform: translate(-50%, -50%); font: 700 var(--fs, 28px)/1 Georgia, serif; color: #ffe9b8; text-shadow: 0 0 6px #000; }
+.efx-scene3d > .efx-ring { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; border: 5px solid #ffc060; animation: efx-landring .8s ease-out forwards; }
+@keyframes efx-landring { 0% { opacity: .95; transform: scale(1); } 100% { opacity: 0; transform: scale(9); border-width: 1px; } }
 
-.efx-result { min-height: 5.5rem; display: flex; flex-direction: column; align-items: center; color: #fff; font-family: "Noto Sans Thai", sans-serif; }
-.efx-result img { width: 56px; height: 56px; border: 2px solid #ff9d3c; border-radius: 50%; object-fit: cover; margin-bottom: 4px; }
-.efx-result .nm { font-size: 1.3rem; letter-spacing: .1em; text-transform: uppercase; }
-.efx-result .tt { font: 900 2.4rem Georgia, serif; text-shadow: 0 0 14px #ff6a1f; }
-.efx-result .tt small { font-size: 1.1rem; opacity: .75; font-weight: 400; }
-.efx-result.crit .tt { color: #ffd94a; text-shadow: 0 0 22px #ffb300; }
-.efx-result.fumble .tt { color: #ff4040; text-shadow: 0 0 22px #b00000; }
+.efx-res { min-height: 2.8rem; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; }
+.efx-res .hint { font-size: .95rem; letter-spacing: .1em; color: #ffd9a0; text-shadow: 0 0 10px #ff6a1f; animation: efx-pulse 1.3s ease-in-out infinite; }
+.efx-res .hint.dim { opacity: .5; animation: none; }
+@keyframes efx-pulse { 50% { opacity: .35; } }
+.efx-res .nat { font: 900 2.6rem/1 Georgia, serif; text-shadow: 0 0 16px #ff6a1f; animation: efx-pop .35s cubic-bezier(.2, 2, .4, 1); }
+.efx-res .sum { font-size: .95rem; opacity: .85; }
+.efx-slot.crit .nat { color: #ffe066; text-shadow: 0 0 26px #ffb300, 0 0 50px #ff8a00; }
+.efx-slot.fumble .nat { color: #ff4444; text-shadow: 0 0 22px #b00000; }
+@keyframes efx-pop { from { transform: scale(2.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.efx-name { font: 700 1.15rem "Cinzel", "Noto Sans Thai", sans-serif; letter-spacing: .06em; color: #fff3d6; text-shadow: 0 0 10px #ff4d00; text-align: center; }
+.efx-player { font-size: .8rem; opacity: .65; color: #ffd9a0; }
+.efx-slot.mine .efx-name { cursor: default; }
+
+.efx-gm-roll { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 3; width: auto; padding: 4px 16px; pointer-events: auto; opacity: .75; }
+.efx-screenflash { position: absolute; inset: 0; z-index: 3; opacity: 0; animation: efx-flash .7s ease-out; }
+.efx-screenflash.gold { background: radial-gradient(circle, rgba(255,240,170,.8), transparent 70%); }
+.efx-screenflash.red { background: radial-gradient(circle, rgba(200,0,0,.55), transparent 70%); }
 
 /* ---------- Initiative order ---------- */
-.efx-order { display: none; flex-direction: column; gap: 6px; min-width: 380px; max-width: 90vw; }
+.efx-order { position: relative; z-index: 1; display: none; flex-direction: column; gap: 6px; min-width: 400px; max-width: 92vw; }
 .efx-dice-stage.ordered .efx-order { display: flex; }
-.efx-order h2 { margin: 0 0 6px; text-align: center; color: #fff3d6; font: 900 2.6rem "Cinzel", Impact, sans-serif; letter-spacing: .15em; border: none; text-shadow: 0 0 20px #ff4d00; }
+.efx-order h2 { margin: 0 0 8px; text-align: center; border: none; color: #fff3d6; font: 900 clamp(1.8rem, 3.5vw, 2.8rem) "Cinzel", Impact, sans-serif; letter-spacing: .15em; text-shadow: 0 0 20px #ff4d00, 0 0 50px #ff3d00; }
 .efx-row {
   display: flex; align-items: center; gap: 12px; padding: 6px 14px; color: #fff; font: 600 1.25rem "Noto Sans Thai", sans-serif;
-  background: linear-gradient(90deg, rgba(120,20,5,.9), rgba(30,5,2,.85)); border-left: 4px solid #ff9d3c;
-  opacity: 0; transform: translateX(-60px); animation: efx-slide .45s ease-out forwards; animation-delay: calc(var(--i) * .18s);
+  background: linear-gradient(90deg, rgba(90,16,4,.92), rgba(28,5,2,.85)); border-left: 4px solid #8a4a2a;
+  opacity: 0; transform: translateX(-70px); animation: efx-slide .45s cubic-bezier(.2, .9, .3, 1) forwards; animation-delay: calc(var(--i) * .18s);
 }
+.efx-row.pc { border-left-color: #ffb347; background: linear-gradient(90deg, rgba(140,36,6,.95), rgba(40,8,2,.88)); }
 .efx-row img { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #ff9d3c; object-fit: cover; }
 .efx-row .nm { flex: 1; }
 .efx-row .tot { font: 900 1.7rem Georgia, serif; color: #ffd9a0; }
 .efx-row .rk { width: 1.6em; opacity: .6; }
 @keyframes efx-slide { to { opacity: 1; transform: none; } }
-.efx-actions { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
-.efx-actions button { pointer-events: auto; width: auto; padding: 6px 18px; }
