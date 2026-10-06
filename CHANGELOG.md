@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.1 — Release Packaging Refresh
+
+- Bumped module version to `0.5.1`.
+- Release manifest now points to the `v0.5.1` module asset.
+- GitHub Actions now publishes both `module.json` and `module.zip` as Release assets.
+- Preserves the semi-real Magical orb/convergence FX, Dark Fantasy foliage/lunge/blood FX, and draggable compact launcher from v0.5.0.
+
 ## v0.5.0 — Semi-Real FX Overhaul
 
 - Redesigned Magical FX with semi-real magical orbs, converging energy trails, arcane core, rings, bloom, and spark bursts.

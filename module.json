@@ -2,7 +2,7 @@
   "id": "encounter-fx",
   "title": "Encounter FX",
   "description": "Semi-real cinematic encounter starter for Foundry VTT v14 + dnd5e with a compact draggable GM launcher and redesigned Default fire, Magical orb/convergence, and Dark Fantasy foliage/blood FX.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
@@ -32,5 +32,5 @@
   "socket": true,
   "url": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank",
   "manifest": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/latest/download/module.json",
-  "download": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/download/v0.5.0/module.zip"
+  "download": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/download/v0.5.1/module.zip"
 }

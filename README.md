@@ -2,7 +2,7 @@
 
 A compact, GM-only cinematic encounter starter for Foundry VTT v14 + dnd5e.
 
-## v0.5.0 — Visual Overhaul
+## v0.5.1 — Visual Overhaul
 
 Version 0.4 focuses on a cleaner GM workflow and stronger cinematic identity.
 
