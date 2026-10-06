@@ -592,3 +592,13 @@
 .st-dark .efx-claws { display:none !important; }
 .efx-drip { background:linear-gradient(90deg,#280000,#8e070b 42%,#c91b1f 54%,#410000); box-shadow:0 1px 5px rgba(0,0,0,.75),0 0 5px rgba(120,0,0,.65); }
 .efx-drip::after { background:radial-gradient(circle at 32% 28%,#e65a5a 0,#a10d12 45%,#350000 100%); }
+
+/* =====================================================================
+   v0.6 MEDIA PLATES + DRAG
+   ===================================================================== */
+.efx-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .45s ease; background: #000; }
+.efx-media-intro.on .efx-media { opacity: 1; }
+.efx-media-intro.leave .efx-media { opacity: 0; transition: opacity 1.2s ease; }
+.efx-media-intro .efx-shaker { z-index: 2; }
+.efx-launcher.efx-dragging, .efx-launcher.efx-dragging .window-header { cursor: grabbing !important; }
+.efx-launcher .window-header, .efx-launcher .efx-compact-head { cursor: grab; }

@@ -39,6 +39,31 @@ const STYLES = {
   }
 };
 
+
+/* ------------------------------------------------------------------ */
+/*  Media plates: optional pre-rendered video per style                */
+/*  Drop a .webm into assets/video/ and that style plays it instead of */
+/*  the procedural FX. Typography, bands, dice and combat stay code.   */
+/* ------------------------------------------------------------------ */
+const MEDIA = {
+  fire:  { src: `modules/${ID}/assets/video/default.webm`,  t: { switch: 2600, title: 2700, leave: 6200, end: 7200, dice: 6500 } },
+  magic: { src: `modules/${ID}/assets/video/magical.webm`,  t: { switch: 2600, title: 2700, leave: 6200, end: 7200, dice: 6500 } },
+  dark:  { src: `modules/${ID}/assets/video/dark-fantasy.webm`, t: { switch: 3600, title: 3900, leave: 7000, end: 8000, dice: 7300 } }
+};
+const mediaCache = new Map();
+/** Resolves to the media config if the file exists on the server, else null (procedural FX are used). */
+async function mediaFor(style) {
+  const m = MEDIA[style]; if (!m) return null;
+  if (!mediaCache.has(style)) {
+    mediaCache.set(style, fetch(m.src, { method: "HEAD" }).then(r => (r.ok ? m : null)).catch(() => null));
+  }
+  return mediaCache.get(style);
+}
+/** Warm the browser cache so the first play does not stall. */
+async function preloadMedia() {
+  for (const style of Object.keys(MEDIA)) { const m = await mediaFor(style); if (m) fetch(m.src).then(r => r.blob()).catch(() => {}); }
+}
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -58,6 +83,7 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  setTimeout(() => preloadMedia(), 4000);
   game.socket.on(SOCKET, onMessage);
   game.modules.get(ID).api = {
     open: openLauncher, launch,
@@ -116,7 +142,7 @@ class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static #onPreview(event, target) {
     const style = this.element.querySelector('input[name="style"]:checked')?.value ?? "fire";
-    onMessage({ action: "intro", style });   // local only: no scene change, no combat
+    mediaFor(style).then(m => onMessage({ action: "intro", style, media: !!m }));   // local only: no scene change, no combat
   }
 
   static async #onSubmit(event, form, formData) {
@@ -129,34 +155,34 @@ class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
-/** Visual decoration only. The outer ApplicationV2 header is the drag handle. */
+
+/** Drag the launcher by its header or any non-interactive area. Delegated once on the window element,
+ *  so it survives re-renders; uses window-level listeners; falls back to direct left/top if setPosition fails. */
+function enableDrag(el, app) {
+  if (el._efxDrag) return; el._efxDrag = true;
+  el.addEventListener("pointerdown", ev => {
+    if (ev.button !== 0) return;
+    if (ev.target.closest("button, input, select, textarea, label, a, summary, option, [data-action], .window-controls")) return;
+    ev.preventDefault(); ev.stopPropagation();                    // we own dragging (the native handler is bypassed)
+    app?.bringToFront?.();
+    const r = el.getBoundingClientRect(), start = { x: ev.clientX, y: ev.clientY, left: r.left, top: r.top };
+    const move = e => {
+      const left = clamp(start.left + e.clientX - start.x, -r.width + 80, innerWidth - 80), top = clamp(start.top + e.clientY - start.y, 0, innerHeight - 40);
+      try { app?.setPosition?.({ left, top }); } catch (err) { /* fall through */ }
+      const now = el.getBoundingClientRect();
+      if (Math.abs(now.left - left) > 2 || Math.abs(now.top - top) > 2) { el.style.left = `${left}px`; el.style.top = `${top}px`; }
+    };
+    const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); el.classList.remove("efx-dragging"); };
+    el.classList.add("efx-dragging");
+    addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+  }, { capture: true });
+}
+
+/** Visual decoration + drag. */
 function decorateLauncher(el, app) {
   if (!el || el._efxDecorated) return;
   el._efxDecorated = true;
-  // Compact launcher: drag the visible Encounter header. No helper text is shown.
-  const dragHandle = el.querySelector(".efx-compact-head");
-  if (dragHandle && app?.setPosition) {
-    dragHandle.style.cursor = "grab";
-    dragHandle.addEventListener("pointerdown", ev => {
-      if (ev.button !== 0 || ev.target.closest("button,input,select,label,a")) return;
-      ev.preventDefault();
-      app.bringToFront?.();
-      const start = { x: ev.clientX, y: ev.clientY, left: app.position.left ?? 0, top: app.position.top ?? 0 };
-      dragHandle.setPointerCapture?.(ev.pointerId);
-      dragHandle.style.cursor = "grabbing";
-      const move = e => app.setPosition({ left: start.left + e.clientX - start.x, top: start.top + e.clientY - start.y });
-      const up = e => {
-        dragHandle.style.cursor = "grab";
-        try { dragHandle.releasePointerCapture?.(e.pointerId); } catch (_) {}
-        dragHandle.removeEventListener("pointermove", move);
-        dragHandle.removeEventListener("pointerup", up);
-        dragHandle.removeEventListener("pointercancel", up);
-      };
-      dragHandle.addEventListener("pointermove", move);
-      dragHandle.addEventListener("pointerup", up);
-      dragHandle.addEventListener("pointercancel", up);
-    });
-  }
+  enableDrag(el, app);
   const motes = el.querySelector(".bg-motes");
   if (motes) {
     for (let i = 0; i < 22; i++) {
@@ -186,10 +212,11 @@ async function launch({ sceneId, actorIds = [], hostile = true, style = "fire" }
   if (!STYLES[style]) style = "fire";
   const scene = game.scenes.get(sceneId);
   if (!scene) return ui.notifications.error("Encounter FX: scene not found.");
-  const T = STYLES[style].t, t0 = Date.now();
+  const media = await mediaFor(style);
+  const T = media ? media.t : STYLES[style].t, t0 = Date.now();
   GM.pcs = new Map(); GM.rolled = new Set(); GM.finishing = false; GM.combatId = null; GM.style = style;
 
-  broadcast({ action: "intro", style });
+  broadcast({ action: "intro", style, media: !!media });
   await sleep(T.switch);
 
   // 1) Move everyone to the target scene while the screen is covered
@@ -578,8 +605,9 @@ async function finishIntro(ctx, onLeave) {
 }
 const own = (fx, ctx) => { fx.owner = ctx.el; return track(fx); };
 
-async function playIntro({ style = "fire" } = {}) {
+async function playIntro({ style = "fire", media = false } = {}) {
   if (!STYLES[style]) style = "fire";
+  if (media && MEDIA[style]) return playMediaIntro(style);
   closeAll();
   const el = document.createElement("div");
   el.className = `efx-intro st-${style}`;
@@ -589,6 +617,38 @@ async function playIntro({ style = "fire" } = {}) {
   play(game.settings.get(ID, "sound"));
   void el.offsetWidth; el.classList.add("on");
   await INTRO[style].run(makeCtx(el, style));
+}
+
+
+/** Pre-rendered plate: full-screen video + code-driven typography on top. */
+async function playMediaIntro(style) {
+  const M = MEDIA[style], S = STYLES[style];
+  closeAll();
+  const el = document.createElement("div");
+  el.className = `efx-intro st-${style} efx-media-intro`;
+  el.innerHTML = `<div class="efx-dim"></div><video class="efx-media" muted playsinline preload="auto" src="${M.src}"></video>
+    <div class="efx-shaker">${bannerHTML(style)}<div class="efx-ring"></div></div><div class="efx-flash"></div>`;
+  root().appendChild(el);
+  for (const tr of el.querySelectorAll(".efx-track")) tr.style.setProperty("--dur", `${Math.max(12, tr.scrollWidth / 2 / 160)}s`);
+  play(game.settings.get(ID, "sound"));
+  const ctx = makeCtx(el, style); ctx.S = { ...S, t: M.t };
+  const video = el.querySelector("video");
+  void el.offsetWidth; el.classList.add("on");
+  video.play().catch(err => console.warn(`${ID} | video autoplay blocked`, err));
+  if (!await ctx.until(M.t.title)) return;
+  const title = el.querySelector(".efx-title"), chars = [...title.querySelectorAll(".ch")], mx = innerWidth / 2;
+  el.classList.add("impact");
+  chars.forEach((ch, i) => {
+    const [x] = centerOf(ch);
+    ch.style.setProperty("--dx", `${(mx - x).toFixed(0)}px`); ch.style.setProperty("--rot", `${rand(-40, 40).toFixed(0)}deg`);
+    ch.style.animationDelay = `${i * 50}ms`; ch.classList.add("on");
+  });
+  title.classList.add("slam");
+  if (!await ctx.until(M.t.title + 700)) return;
+  el.classList.add("bands");
+  if (!await ctx.until(M.t.title + 1500)) return;
+  title.classList.add("glow");
+  await finishIntro(ctx, () => video.pause());
 }
 
 const centerOf = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
