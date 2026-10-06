@@ -584,3 +584,23 @@
   .efx-intro.impact .efx-shaker, .efx-title.slam { animation: none !important; }
   .efx-hand { display: none; }
 }
+
+/* =====================================================================
+   v0.9 ASSET PACK DIRECTOR (Magical)
+   ===================================================================== */
+.efx-pack-stage { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.efx-pack-stage .p-img, .efx-pack-stage .p-orb { position: absolute; pointer-events: none; user-select: none; -webkit-user-drag: none; will-change: transform, opacity; }
+.p-orb { width: 0; height: 0; }
+.p-ringwrap { position: absolute; will-change: transform, opacity; }
+.p-screen { mix-blend-mode: screen; }
+.efx-pack-intro .efx-shaker { z-index: 3; }
+.efx-pack-intro .efx-title { display: grid; place-items: center; padding-left: 0; }
+.efx-title-img, .efx-title-sweep { grid-area: 1 / 1; display: block; width: min(88vw, 1500px); height: auto; user-select: none; -webkit-user-drag: none; }
+.efx-title-img { filter: drop-shadow(0 0 22px rgba(150, 110, 255, .45)); }
+.efx-title-sweep { mix-blend-mode: screen; filter: brightness(2.4) saturate(.5); pointer-events: none;
+  -webkit-mask-image: linear-gradient(105deg, transparent 42%, #000 50%, transparent 58%); mask-image: linear-gradient(105deg, transparent 42%, #000 50%, transparent 58%);
+  -webkit-mask-size: 260% 100%; mask-size: 260% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: 130% 0; mask-position: 130% 0; }
+.efx-title-sweep.on { animation: p-sweep 3.8s ease-in-out infinite; }
+@keyframes p-sweep { 0% { -webkit-mask-position: 130% 0; mask-position: 130% 0; } 48%, 100% { -webkit-mask-position: -35% 0; mask-position: -35% 0; } }
+.efx-pack-intro.leave .efx-pack-stage, .efx-pack-intro.leave .efx-shaker { opacity: 0; transition: opacity 1.2s ease; }
+@media (prefers-reduced-motion: reduce) { .efx-title-sweep.on { animation: none; } }

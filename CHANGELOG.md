@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 — Magical Asset Pack
+- **Magical is now built from real artwork.** A timeline director animates pre-rendered, transparent assets: 6 hero orbs with ribbon trails spiral into an arcane core, burst, and a crystal ENCOUNTER title is revealed with a light sweep and sparkles. The running-text bands are kept.
+- Assets live in `assets/magical/` (17 transparent WebP + `pack.json`, about 1.6 MB). They were cut from generated sheets with `tools/extract_magical_pack.py`.
+- Resolution order per style: video plate > asset pack > still plate > procedural. If any critical asset fails to load, Magical falls back to the procedural effect; optional layers are skipped. The encounter never depends on the art.
+- Assets are preloaded into the browser cache shortly after the game loads.
+- Added `docs/FX_TIMELINES.md` (timeline + asset inventory).
+- Dark Fantasy and Default are unchanged (procedural), awaiting their own packs.
+
 ## 0.8.1 — Restored Brief + Centered Title
 - **ENCOUNTER is centered again.** The 0.5.2 cleanup layer had pushed the title down (56-58%) and shrunk it; removed. Added compensation for the trailing letter-spacing so it is exactly centered.
 - **Magical restored to the original brief:** many colored streams spiral into the center, burst, the title is born from the core, with glitter. The running text bands are back, restyled as shimmering arcane text with star separators.

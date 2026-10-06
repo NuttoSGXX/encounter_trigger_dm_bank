@@ -78,21 +78,53 @@ async function plateFor(style) {
   })());
   return plateCache.get(style);
 }
+
+/* Asset packs: layered, pre-rendered art (orbs, ribbons, core, title...) driven by a timeline director.
+   Priority per style: video plate > asset pack > still plate > procedural FX. Missing files never break the encounter. */
+const PACKS = {
+  magic: { dir: `modules/${ID}/assets/magical`, t: { switch: 2850, leave: 6700, end: 7900, dice: 7000 } }
+};
+const packCache = new Map();
+async function packFor(style) {
+  const P = PACKS[style]; if (!P) return null;
+  if (!packCache.has(style)) packCache.set(style, (async () => {
+    try {
+      const r = await fetch(`${P.dir}/pack.json`); if (!r.ok) return null;
+      const manifest = await r.json();
+      return manifest?.assets?.["encounter-magical"] && manifest.assets["arcane-core"] ? { type: "pack", ...P, manifest } : null;
+    } catch (e) { return null; }
+  })());
+  return packCache.get(style);
+}
+const imgCache = new Map();
+function loadImg(src, timeout = 7000) {
+  if (!imgCache.has(src)) imgCache.set(src, new Promise(res => {
+    const im = new Image(), to = setTimeout(() => res(null), timeout);
+    im.onload = () => { clearTimeout(to); res(im); }; im.onerror = () => { clearTimeout(to); res(null); };
+    im.decoding = "async"; im.src = src;
+  }));
+  return imgCache.get(src);
+}
+
 /** What should play for this style: a video plate, a still plate, or null (procedural). */
 async function assetFor(style) {
   const v = await mediaFor(style); if (v) return { type: "video", src: v.src, t: v.t };
+  const k = await packFor(style); if (k) return { type: "pack", src: null, t: k.t };
   return (await plateFor(style)) ?? null;
 }
 
 /** Warm the browser cache so the first play does not stall. */
 async function preloadMedia() {
   for (const style of Object.keys(MEDIA)) { const m = await mediaFor(style); if (m) fetch(m.src).then(r => r.blob()).catch(() => {}); const pl = await plateFor(style); if (pl) { const im = new Image(); im.src = pl.src; } }
+  for (const style of Object.keys(PACKS)) { const k = await packFor(style); if (k) Object.values(k.manifest.assets).forEach(a => loadImg(`${k.dir}/${a.file}`)); }
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+/** True when the OS asks for reduced motion. */
+const calm = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 /* ------------------------------------------------------------------ */
@@ -676,6 +708,7 @@ const own = (fx, ctx) => { fx.owner = ctx.el; return track(fx); };
 async function playIntro({ style = "fire", media = false, asset = null, src = null } = {}) {
   if (!STYLES[style]) style = "fire";
   if ((asset === "video" || media) && MEDIA[style]) return playMediaIntro(style);
+  if (asset === "pack" && PACKS[style]) return playPackIntro(style);
   if (asset === "plate" && PLATES[style] && src) return playPlateIntro(style, src);
   closeAll();
   const el = document.createElement("div");
@@ -776,6 +809,130 @@ async function playPlateIntro(style, src) {
     sparks.burst(cx, cy, { n: 70, speed: 700, life: [.6, 1.4], size: [3, 7], gravity: 1000, colors: blood, add: false });
     if (!await ctx.until(P.t.title + 400)) return; startDrips(title, ctx); title.classList.add("glow");
     await finishIntro(ctx);
+  }
+}
+
+/** Magical asset pack director: orbs + ribbons converge on an arcane core, burst, title is revealed. */
+async function playPackIntro(style) {
+  const K = await packFor(style);
+  if (!K) return playIntro({ style });                                   // pack vanished: procedural fallback
+  closeAll();
+  const S = STYLES[style], A = K.manifest.assets;
+  const el = document.createElement("div");
+  el.className = `efx-intro st-${style} efx-pack-intro`;
+  el.innerHTML = `<div class="efx-dim"></div><div class="efx-pack-stage"></div><div class="efx-flash"></div><div class="efx-shaker">${bannerHTML(style)}</div>`;
+  root().appendChild(el);
+  for (const tr of el.querySelectorAll(".efx-track")) tr.style.setProperty("--dur", `${Math.max(12, tr.scrollWidth / 2 / 160)}s`);
+  play(game.settings.get(ID, "sound"));
+  const ctx = makeCtx(el, style); ctx.S = { ...S, t: K.t };
+  void el.offsetWidth; el.classList.add("on");
+
+  // load every image (cached after the first run); a missing optional asset just removes that layer
+  const names = Object.keys(A), loaded = {};
+  await Promise.all(names.map(async n => { loaded[n] = await loadImg(`${K.dir}/${A[n].file}`); }));
+  if (!ctx.alive()) return;
+  if (!loaded["arcane-core"] || !loaded["encounter-magical"]) { console.warn(`${ID} | magical pack incomplete, using procedural FX`); return playIntro({ style }); }
+  const src = n => `${K.dir}/${A[n].file}`, has = n => !!loaded[n];
+
+  try {
+    const stage = el.querySelector(".efx-pack-stage"), W = innerWidth, H = innerHeight, u = Math.min(W, H), cx = W / 2, cy = H / 2;
+    const q = calm() ? 0.5 : 1, anims = [];
+    const mk = (n, css = "", cls = "") => { const im = document.createElement("img"); im.src = src(n); im.alt = ""; im.draggable = false; im.className = `p-img ${cls}`; im.style.cssText = css; stage.appendChild(im); return im; };
+    const anim = (node, kf, opt) => { const a = node.animate(kf, { fill: "forwards", ...opt }); anims.push(a); return a; };
+    const center = (w, h) => `left:${cx - w / 2}px;top:${cy - h / 2}px;width:${w}px;height:${h}px;`;
+
+    // --- hero orbs with ribbons (6 orbs, each with its own path)
+    const ORBS = [
+      { n: "orb-blue", rb: "ribbon-blue", f: 1.0, dir: 1 }, { n: "orb-magenta", rb: "ribbon-violet", f: .86, dir: -1, hue: 38 },
+      { n: "orb-cyan", rb: "ribbon-blue", f: 1.1, dir: 1, hue: -22 }, { n: "orb-gold", rb: "ribbon-gold", f: .9, dir: -1 },
+      { n: "orb-violet", rb: "ribbon-violet", f: 1.05, dir: 1 }, { n: "orb-green", rb: "ribbon-green", f: .82, dir: -1 }
+    ].filter(o => has(o.n));
+    const D = 2500, N = 36;
+    ORBS.forEach((o, i) => {
+      const a0 = (i / ORBS.length) * Math.PI * 2 + rand(-.18, .18), R = rand(.92, 1.08), size = u * 0.19 * o.f;
+      const rx = W * 0.40, ry = H * 0.34, pts = [];
+      for (let k = 0; k <= N; k++) {
+        const f = k / N, qq = ss(.38, .95, f), d = ss(.1, .4, f), ang = a0 + o.dir * (.35 * d + 1.15 * Math.PI * qq), rad = R * Math.pow(1 - qq, 1.15) * (1 - .05 * d);
+        pts.push([Math.cos(ang) * rad * rx, Math.sin(ang) * rad * ry]);
+      }
+      const wrap = document.createElement("div"); wrap.className = "p-orb"; wrap.style.cssText = `left:${cx}px;top:${cy}px;`; stage.appendChild(wrap);
+      const orb = document.createElement("img"); orb.src = src(o.n); orb.className = "p-img p-screen"; orb.draggable = false;
+      orb.style.cssText = `left:${-size / 2}px;top:${-size / 2}px;width:${size}px;height:${size}px;opacity:0;`; wrap.appendChild(orb);
+      if (has(o.rb)) {                                                    // ribbon trails behind the orb, head at the orb
+        const a = A[o.rb], rw = size * 3.6, rh = rw * a.h / a.w, rib = document.createElement("img");
+        rib.src = src(o.rb); rib.className = "p-img p-screen"; rib.draggable = false;
+        rib.style.cssText = `left:${-a.ax * rw}px;top:${-a.ay * rh}px;width:${rw}px;height:${rh}px;transform-origin:${a.ax * 100}% ${a.ay * 100}%;opacity:0;${o.hue ? `filter:hue-rotate(${o.hue}deg);` : ""}`;
+        wrap.insertBefore(rib, orb);
+        const ang = []; let last = null;
+        for (let k = 0; k <= N; k++) {
+          const p0 = pts[Math.max(0, k - 1)], p1 = pts[Math.min(N, k + 1)], dx = p1[0] - p0[0], dy = p1[1] - p0[1];
+          let t = Math.hypot(dx, dy) > 0.6 ? Math.atan2(dy, dx) * 180 / Math.PI : null;
+          if (t !== null && last !== null) { while (t - last > 180) t -= 360; while (t - last < -180) t += 360; }
+          if (t !== null) last = t; ang.push(t);
+        }
+        const firstMoving = ang.find(v => v !== null) ?? 0; let prev = firstMoving;
+        const rot = ang.map(v => { if (v === null) v = prev; prev = v; return v; });
+        anim(rib, rot.map((r, k) => ({ offset: k / N, transform: `rotate(${r.toFixed(1)}deg)`, opacity: ss(.26, .46, k / N) * (1 - ss(.9, .98, k / N)) * .92 })), { delay: 150 + i * 40, duration: D, easing: "linear" });
+      }
+      anim(wrap, pts.map((p, k) => ({ offset: k / N, transform: `translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)` })), { delay: 150 + i * 40, duration: D, easing: "linear" });
+      anim(orb, [{ offset: 0, opacity: 0, transform: "scale(.4)" }, { offset: .12, opacity: 1, transform: "scale(1)" }, { offset: .9, opacity: 1, transform: "scale(.92)" },
+        { offset: .97, opacity: .9, transform: "scale(.4)" }, { offset: 1, opacity: 0, transform: "scale(.12)" }], { delay: 150 + i * 40, duration: D, easing: "ease-out" });
+    });
+
+    // --- arcane core (charges) and rings
+    const cw = u * 0.5, chh = cw * A["arcane-core"].h / A["arcane-core"].w;
+    const core = mk("arcane-core", center(cw, chh) + "opacity:0;", "p-screen");
+    anim(core, [{ opacity: 0, transform: "scale(.08)" }, { offset: .3, opacity: .6, transform: "scale(.24)" }, { opacity: 1, transform: "scale(.78)" }], { delay: 300, duration: 2300, easing: "cubic-bezier(.4,0,.6,1)" });
+    const rings = [];
+    if (has("arcane-ring")) [[1.0, 1, .85, 18000], [1.32, -1, .45, 26000]].forEach(([k, dir, op, dur], i) => {
+      const rw = u * 0.62 * k, rh = rw * A["arcane-ring"].h / A["arcane-ring"].w;
+      const wrap = document.createElement("div"); wrap.className = "p-ringwrap"; wrap.style.cssText = center(rw, rh); wrap.style.opacity = 0; stage.appendChild(wrap);
+      const im = document.createElement("img"); im.src = src("arcane-ring"); im.className = "p-img p-screen"; im.draggable = false; im.style.cssText = "left:0;top:0;width:100%;height:100%;"; wrap.appendChild(im);
+      if (!calm()) anim(im, [{ transform: "rotate(0deg)" }, { transform: `rotate(${360 * dir}deg)` }], { duration: dur, iterations: Infinity, easing: "linear", fill: "none" });
+      anim(wrap, [{ opacity: 0, transform: "scale(.5)" }, { opacity: op, transform: "scale(1)" }], { delay: 900 + i * 300, duration: 900, easing: "ease-out" });
+      rings.push(wrap);
+    });
+
+    // --- timeline
+    if (!await ctx.until(2650)) return;
+    el.classList.add("impact");                                          // CONVERGENCE -> BURST
+    anim(core, [{ opacity: 1, transform: "scale(.78)" }, { offset: .25, opacity: 1, transform: "scale(1.1)" }, { opacity: 0, transform: "scale(1.9)" }], { duration: 800, easing: "ease-out" });
+    rings.forEach(r => anim(r, [{ opacity: .8, transform: "scale(1)" }, { opacity: 0, transform: "scale(3)" }], { duration: 1000, easing: "cubic-bezier(.2,.7,.3,1)" }));
+    if (has("magic-burst")) {
+      const bw = u * 0.62, b = mk("magic-burst", center(bw, bw * A["magic-burst"].h / A["magic-burst"].w) + "opacity:0;", "p-screen");
+      anim(b, [{ opacity: 1, transform: "scale(.25)" }, { offset: .35, opacity: 1, transform: "scale(1.6)" }, { opacity: 0, transform: "scale(2.6)" }], { duration: 1100, easing: "ease-out" });
+    }
+    const sparkNames = ["sparkle-1", "sparkle-2", "sparkle-3", "sparkle-4"].filter(has);
+    const burstSparks = Math.round(16 * q);
+    if (sparkNames.length) for (let i = 0; i < burstSparks; i++) {
+      const n = sparkNames[i % sparkNames.length], sz = u * rand(.05, .12), ang = rand(0, 6.283), dist = rand(.16, .5) * W;
+      const im = mk(n, `left:${cx - sz / 2}px;top:${cy - sz / 2}px;width:${sz}px;height:auto;opacity:0;`, "p-screen");
+      const a = anim(im, [{ opacity: 1, transform: "translate(0,0) scale(.3) rotate(0deg)" }, { offset: .3, opacity: 1 },
+        { opacity: 0, transform: `translate(${Math.cos(ang) * dist}px,${Math.sin(ang) * dist * .7}px) scale(${rand(.7, 1.3)}) rotate(${rand(-90, 90)}deg)` }], { duration: rand(900, 1600), easing: "cubic-bezier(.1,.7,.3,1)" });
+      a.onfinish = () => im.remove();
+    }
+
+    if (!await ctx.until(2800)) return;                                  // the title is revealed from the core
+    const title = el.querySelector(".efx-title"); title.textContent = "";
+    const timg = document.createElement("img"); timg.src = src("encounter-magical"); timg.className = "efx-title-img"; timg.alt = "ENCOUNTER"; timg.draggable = false; title.appendChild(timg);
+    const tsweep = document.createElement("img"); tsweep.src = src("encounter-magical"); tsweep.className = "efx-title-sweep"; tsweep.alt = ""; tsweep.draggable = false; tsweep.style.opacity = 0; title.appendChild(tsweep);
+    anim(timg, [{ opacity: 0, transform: "scale(.55)", filter: "blur(18px) brightness(3)" }, { offset: .55, opacity: 1, filter: "blur(2px) brightness(1.6)" }, { opacity: 1, transform: "scale(1)", filter: "blur(0) brightness(1)" }],
+      { duration: 1000, easing: "cubic-bezier(.2,.9,.2,1)" });
+
+    if (!await ctx.until(3500)) return; el.classList.add("bands");        // running text frames the title
+    const tr = timg.getBoundingClientRect();
+    if (sparkNames.length) for (let i = 0; i < Math.round(12 * q); i++) {   // a restrained field of twinkles around the title
+      const n = sparkNames[i % sparkNames.length], sz = u * rand(.03, .07), x = rand(tr.left - tr.width * .03, tr.right + tr.width * .03), y = rand(tr.top - tr.height * .5, tr.bottom + tr.height * .5);
+      const im = mk(n, `left:${x - sz / 2}px;top:${y - sz / 2}px;width:${sz}px;height:auto;opacity:0;`, "p-screen");
+      anim(im, [{ opacity: 0, transform: "scale(.2) rotate(0deg)" }, { offset: .5, opacity: 1, transform: "scale(1) rotate(25deg)" }, { opacity: 0, transform: "scale(.2) rotate(50deg)" }],
+        { delay: rand(0, 1800), duration: rand(1400, 2600), iterations: Infinity, fill: "none" });
+    }
+    if (!await ctx.until(4000)) return;
+    tsweep.style.opacity = 1; tsweep.classList.add("on");                  // light sweeps through the letters
+    if (!calm()) anim(timg, [{ filter: "brightness(1)" }, { filter: "brightness(1.18)" }], { duration: 2600, iterations: Infinity, direction: "alternate", easing: "ease-in-out", fill: "none" });
+    await finishIntro(ctx);
+  } catch (err) {
+    console.error(`${ID} | pack intro failed`, err); closeAll();
   }
 }
 

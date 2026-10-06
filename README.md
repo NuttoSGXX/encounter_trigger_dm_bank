@@ -42,17 +42,18 @@ Players only ever see the cinematic and their own dice; they cannot open the lau
 | Style | Look |
 |---|---|
 | **Default** | Fire. The title is typed letter by letter, slammed onto the screen, and glows like embers. |
-| **Magical** | Many colored magic streams spiral into the center, burst, and the title is born from the core. Glittering stars, shimmering running text. |
+| **Magical** | Built from layered artwork: six crystal orbs with ribbon trails spiral into an arcane core, burst, and a crystal ENCOUNTER title is revealed with a light sweep and sparkles. Shimmering running text. (Procedural fallback if the art is missing.) |
 | **Dark Fantasy** | Moonlit fog, a clawed hand parts the brush, two eyes in the dark, a sudden lunge, black, blood, and a title that bleeds. Grey/black running text. |
 
-All three work out of the box with procedural effects (no extra files).
+Default and Dark Fantasy use procedural effects. Magical ships with its asset pack in `assets/magical/`. Asset inventory and timeline: `docs/FX_TIMELINES.md`.
 
 ## Bring your own art (optional)
 
-For a look beyond what code can draw, you can feed a style your own artwork or video. Priority per style: **video > still plate > procedural effects**. If a file is missing the module falls back automatically.
+For a look beyond what code can draw, you can feed a style your own artwork or video. Priority per style: **video > asset pack > still plate > procedural effects**. If a file is missing the module falls back automatically.
 
 | Kind | Where | Notes |
 |---|---|---|
+| Asset pack (Magical) | `assets/magical/` + `pack.json` | Transparent WebP layers animated by a timeline director. Rebuild from new sheets with `tools/extract_magical_pack.py`. |
 | Video plate | `assets/video/default.webm`, `magical.webm`, `dark-fantasy.webm` | 1080p, 6-9 s, opaque. See `assets/README.md` for specs and cue timings. |
 | Still plate | `assets/plates/magical.(webp\|jpg\|png)`, `dark-fantasy.(webp\|jpg\|png)` | 16:9 artwork (for example from ChatGPT). The module animates it: reveal, push-in, fog, lunge, blood, typography. |
 

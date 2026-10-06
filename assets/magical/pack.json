@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "dir": "assets/magical",
+  "assets": {
+    "orb-blue": {
+      "file": "orb-blue.webp",
+      "w": 381,
+      "h": 383
+    },
+    "orb-cyan": {
+      "file": "orb-cyan.webp",
+      "w": 374,
+      "h": 376
+    },
+    "orb-violet": {
+      "file": "orb-violet.webp",
+      "w": 378,
+      "h": 381
+    },
+    "orb-magenta": {
+      "file": "orb-magenta.webp",
+      "w": 375,
+      "h": 376
+    },
+    "orb-gold": {
+      "file": "orb-gold.webp",
+      "w": 377,
+      "h": 377
+    },
+    "orb-green": {
+      "file": "orb-green.webp",
+      "w": 374,
+      "h": 379
+    },
+    "ribbon-blue": {
+      "file": "ribbon-blue.webp",
+      "w": 1000,
+      "h": 164,
+      "ax": 0.7998,
+      "ay": 0.4436
+    },
+    "ribbon-violet": {
+      "file": "ribbon-violet.webp",
+      "w": 1000,
+      "h": 170,
+      "ax": 0.8084,
+      "ay": 0.4676
+    },
+    "ribbon-gold": {
+      "file": "ribbon-gold.webp",
+      "w": 1000,
+      "h": 186,
+      "ax": 0.7523,
+      "ay": 0.5293
+    },
+    "ribbon-green": {
+      "file": "ribbon-green.webp",
+      "w": 1000,
+      "h": 164,
+      "ax": 0.78,
+      "ay": 0.5516
+    },
+    "arcane-core": {
+      "file": "arcane-core.webp",
+      "w": 477,
+      "h": 495
+    },
+    "arcane-ring": {
+      "file": "arcane-ring.webp",
+      "w": 490,
+      "h": 486
+    },
+    "magic-burst": {
+      "file": "magic-burst.webp",
+      "w": 601,
+      "h": 521
+    },
+    "sparkle-1": {
+      "file": "sparkle-1.webp",
+      "w": 166,
+      "h": 188
+    },
+    "sparkle-2": {
+      "file": "sparkle-2.webp",
+      "w": 260,
+      "h": 284
+    },
+    "sparkle-3": {
+      "file": "sparkle-3.webp",
+      "w": 145,
+      "h": 152
+    },
+    "sparkle-4": {
+      "file": "sparkle-4.webp",
+      "w": 124,
+      "h": 138
+    },
+    "encounter-magical": {
+      "file": "encounter-magical.webp",
+      "w": 1600,
+      "h": 283
+    }
+  }
+}
