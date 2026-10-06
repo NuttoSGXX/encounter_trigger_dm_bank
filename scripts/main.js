@@ -111,7 +111,7 @@ class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
 
   _onRender(context, options) {
     super._onRender?.(context, options);
-    decorateLauncher(this.element);
+    decorateLauncher(this.element, this);
   }
 
   static #onPreview(event, target) {
@@ -130,9 +130,25 @@ class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
 }
 
 /** Parallax, floating motes, tilt cards and scene search for the launcher UI. */
-function decorateLauncher(el) {
+function decorateLauncher(el, app) {
   if (!el || el._efxDecorated) return;
   el._efxDecorated = true;
+  // Foundry V14 ApplicationV2 already exposes a draggable frame. Re-bind the compact header
+  // to the same position API so the entire occult launcher can be picked up from its title area.
+  const dragHandle = el.querySelector(".efx-compact-head");
+  if (dragHandle && app?.setPosition) {
+    dragHandle.title = "Drag to move Encounter FX";
+    dragHandle.style.cursor = "grab";
+    dragHandle.addEventListener("pointerdown", ev => {
+      if (ev.button !== 0 || ev.target.closest("button,input,select,label,a")) return;
+      ev.preventDefault(); app.bringToFront?.(); dragHandle.setPointerCapture?.(ev.pointerId);
+      const start = { x: ev.clientX, y: ev.clientY, left: app.position.left ?? 0, top: app.position.top ?? 0 };
+      dragHandle.style.cursor = "grabbing";
+      const move = e => app.setPosition({ left: start.left + e.clientX - start.x, top: start.top + e.clientY - start.y });
+      const up = e => { dragHandle.style.cursor = "grab"; try { dragHandle.releasePointerCapture?.(e.pointerId); } catch (_) {} dragHandle.removeEventListener("pointermove", move); dragHandle.removeEventListener("pointerup", up); dragHandle.removeEventListener("pointercancel", up); };
+      dragHandle.addEventListener("pointermove", move); dragHandle.addEventListener("pointerup", up); dragHandle.addEventListener("pointercancel", up);
+    });
+  }
   const motes = el.querySelector(".bg-motes");
   if (motes) {
     for (let i = 0; i < 28; i++) {
@@ -478,73 +494,125 @@ const magicHue = () => MAGIC_HUES[(Math.random() * MAGIC_HUES.length) | 0] + ran
 class MagicFX {
   constructor(canvas) {
     this.c = canvas; this.ctx = canvas.getContext("2d");
-    this.resize = () => { canvas.width = innerWidth; canvas.height = innerHeight; };
+    this.resize = () => { canvas.width = innerWidth; canvas.height = innerHeight; this.w = canvas.width; this.h = canvas.height; };
     this.resize(); addEventListener("resize", this.resize);
-    this.streams = []; this.stars = []; this.rects = []; this.sparkRate = 0; this.loop = this.loop.bind(this);
+    this.streams = []; this.stars = []; this.orbs = []; this.rings = []; this.rects = [];
+    this.sparkRate = 0; this.on = false; this.t0 = 0; this.last = 0; this.loop = this.loop.bind(this);
+    const count = 11;
+    for (let i = 0; i < count; i++) this.orbs.push({
+      a: rand(0, Math.PI * 2), r: rand(.25, .72), speed: rand(.16, .42) * (Math.random() < .5 ? -1 : 1),
+      hue: magicHue(), size: rand(6, 15), phase: rand(0, 6.28), tilt: rand(.55, .9), life: rand(.3, 1)
+    });
   }
   start() { this.on = true; this.t0 = this.last = performance.now(); requestAnimationFrame(this.loop); }
   stop() { this.on = false; removeEventListener("resize", this.resize); }
-  burst(x, y, n, speed = 520) {
-    for (let i = 0; i < n && this.stars.length < 900; i++) {
-      const a = rand(0, 6.283), s = speed * rand(0.2, 1);
-      this.stars.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, drag: 0.955, life: 0, max: rand(0.7, 1.7), size: rand(4, 13), hue: magicHue(), rot: rand(0, 1.57), spin: rand(-2, 2) });
+  burst(x, y, n = 120, speed = 620) {
+    for (let i = 0; i < n && this.stars.length < 1800; i++) {
+      const a = rand(0, Math.PI * 2), s = speed * rand(.18, 1.05);
+      this.stars.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, drag: rand(.91, .975), life: 0, max: rand(.65, 1.7), size: rand(2, 8), hue: magicHue(), rot: rand(0, 6.28), spin: rand(-5, 5) });
     }
   }
-  star(x, y, s, rot, hue) {
+  orb(x, y, size, hue, alpha = 1) {
     const ctx = this.ctx;
-    const g = ctx.createRadialGradient(x, y, 0, x, y, s * 1.2);
-    g.addColorStop(0, `hsla(${hue},100%,80%,.5)`); g.addColorStop(1, `hsla(${hue},100%,70%,0)`);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, s * 1.2, 0, 6.283); ctx.fill();
-    ctx.fillStyle = `hsla(${hue},100%,88%,.95)`; ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const a = rot + i * Math.PI / 4, r = i % 2 ? s * 0.2 : s;
-      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
-      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-    }
-    ctx.closePath(); ctx.fill();
+    ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(x, y, 0, x, y, size * 5);
+    g.addColorStop(0, `hsla(${hue},100%,96%,${.95 * alpha})`);
+    g.addColorStop(.08, `hsla(${hue},100%,86%,${.9 * alpha})`);
+    g.addColorStop(.26, `hsla(${hue},100%,66%,${.55 * alpha})`);
+    g.addColorStop(1, `hsla(${hue},100%,50%,0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, size * 5, 0, Math.PI * 2); ctx.fill();
+    const core = ctx.createRadialGradient(x - size*.25, y - size*.25, 0, x, y, size);
+    core.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    core.addColorStop(.25, `hsla(${hue},100%,92%,${alpha})`);
+    core.addColorStop(.7, `hsla(${hue},100%,55%,${.85*alpha})`);
+    core.addColorStop(1, `hsla(${hue},100%,35%,0)`);
+    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `hsla(${hue},100%,88%,${.7*alpha})`; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(x, y, size * 1.7, 0, Math.PI * 2); ctx.stroke();
+  }
+  filament(x1,y1,x2,y2,hue,alpha=1,lw=1.5) {
+    const ctx=this.ctx, dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy)||1, nx=-dy/len, ny=dx/len;
+    ctx.globalCompositeOperation="lighter"; ctx.lineCap="round";
+    const grad=ctx.createLinearGradient(x1,y1,x2,y2);
+    grad.addColorStop(0,`hsla(${hue},100%,75%,0)`); grad.addColorStop(.35,`hsla(${hue},100%,78%,${.38*alpha})`); grad.addColorStop(1,`hsla(${hue},100%,96%,${alpha})`);
+    ctx.strokeStyle=grad; ctx.lineWidth=lw;
+    ctx.beginPath(); ctx.moveTo(x1,y1);
+    const bend=(Math.sin((x1+x2)*.008+(y1+y2)*.004)*.08)*len;
+    ctx.quadraticCurveTo((x1+x2)/2+nx*bend,(y1+y2)/2+ny*bend,x2,y2); ctx.stroke();
+  }
+  star(x, y, s, rot, hue, alpha=1) {
+    const ctx=this.ctx; ctx.globalCompositeOperation="lighter";
+    const g=ctx.createRadialGradient(x,y,0,x,y,s*2.6); g.addColorStop(0,`hsla(${hue},100%,90%,${.35*alpha})`); g.addColorStop(1,`hsla(${hue},100%,70%,0)`);
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,s*2.6,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=`hsla(${hue},100%,94%,${alpha})`; ctx.beginPath();
+    for(let i=0;i<8;i++){const a=rot+i*Math.PI/4,r=i%2?s*.18:s;const px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);} ctx.closePath();ctx.fill();
   }
   loop(now) {
     if (!this.on) return;
-    const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
-    const el = (now - this.t0) / 1000, { width: w, height: h } = this.c, ctx = this.ctx, cx = w / 2, cy = h / 2;
-    ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "rgba(0,0,0,.17)"; ctx.fillRect(0, 0, w, h);
-    ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
-
-    if (el < 1.8) {
-      for (let i = 0, n = Math.round(10 * dt * 60); i < n; i++)
-        this.streams.push({ a: rand(0, 6.283), R: Math.hypot(w, h) * rand(0.5, 0.7), turns: rand(0.6, 1.4), t: 0,
-          dur: Math.max(0.3, Math.min(rand(0.8, 1.4), 2.0 - el)), hue: magicHue(), lw: rand(1.5, 4.5), px: null, py: null });
+    const dt=Math.min(.04,(now-this.last)/1000); this.last=now; const t=(now-this.t0)/1000;
+    const {width:w,height:h}=this.c,ctx=this.ctx,cx=w/2,cy=h/2;
+    ctx.globalCompositeOperation="source-over"; ctx.fillStyle="rgba(4,2,12,.19)"; ctx.fillRect(0,0,w,h);
+    ctx.globalCompositeOperation="lighter";
+    // Deep arcane orbit: colored orbs physically travel inward instead of flat gradient rings.
+    for(const o of this.orbs){
+      o.a += o.speed*dt; const rr=Math.min(w,h)*o.r*(1-.34*ss(0,2.8,t));
+      const x=cx+Math.cos(o.a)*rr, y=cy+Math.sin(o.a)*rr*o.tilt;
+      const tx=cx+Math.cos(o.a-.055)*rr, ty=cy+Math.sin(o.a-.055)*rr*o.tilt;
+      this.filament(tx,ty,x,y,o.hue,.8,1.3);
+      this.orb(x,y,o.size*(.85+.15*Math.sin(t*3+o.phase)),o.hue,.9);
+      if(Math.random()<.08) this.star(x+rand(-10,10),y+rand(-10,10),rand(2,5),rand(0,6.28),o.hue,.8);
     }
-    this.streams = this.streams.filter(s => {
-      s.t += dt; const u = Math.min(1, s.t / s.dur);
-      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
-      const r = s.R * (1 - e), ang = s.a + s.turns * 6.283 * e;
-      const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r * 0.78;
-      if (s.px !== null) {
-        ctx.strokeStyle = `hsla(${s.hue},100%,${62 + 30 * e}%,${0.5 + 0.45 * e})`; ctx.lineWidth = s.lw * (1.2 - 0.5 * e);
-        ctx.beginPath(); ctx.moveTo(s.px, s.py); ctx.lineTo(x, y); ctx.stroke();
-      }
-      s.px = x; s.py = y;
-      if (u >= 1) { if (Math.random() < 0.12) this.stars.push({ x, y, vx: rand(-40, 40), vy: rand(-40, 40), drag: 0.97, life: 0, max: rand(0.5, 1), size: rand(5, 10), hue: s.hue, rot: 0, spin: 1 }); return false; }
-      return true;
-    });
-
-    if (this.sparkRate > 0 && this.rects.length) {
-      for (let k = this.sparkRate * dt * 60; k > 0; k--) {
-        if (Math.random() > Math.min(1, k)) continue;
-        const r = this.rects[(Math.random() * this.rects.length) | 0];
-        this.stars.push({ x: rand(r.x, r.x + r.w), y: rand(r.y, r.y + r.h), vx: 0, vy: rand(-12, 12), drag: 1, life: 0, max: rand(0.5, 1.3), size: rand(5, 14), hue: magicHue(), rot: 0, spin: rand(-1, 1) });
-      }
+    // Converging ribbon filaments from the screen edge.
+    if(t<2.45){
+      const n=Math.round(15*dt*60);
+      for(let i=0;i<n;i++) this.streams.push({a:rand(0,Math.PI*2),R:Math.hypot(w,h)*rand(.48,.78),turns:rand(.35,.95),t:0,dur:rand(.95,1.65),hue:magicHue(),lw:rand(1.1,3.4),px:null,py:null});
     }
-    this.stars = this.stars.filter(s => {
-      s.life += dt; if (s.life >= s.max) return false;
-      s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= s.drag; s.vy *= s.drag; s.rot += s.spin * dt;
-      this.star(s.x, s.y, s.size * Math.sin(Math.PI * s.life / s.max), s.rot, s.hue);
-      return true;
-    });
+    this.streams=this.streams.filter(s=>{s.t+=dt;const u=Math.min(1,s.t/s.dur),e=ss(0,1,u),r=s.R*(1-e),ang=s.a+s.turns*Math.PI*2*e,x=cx+Math.cos(ang)*r,y=cy+Math.sin(ang)*r*.74;
+      if(s.px!==null){this.filament(s.px,s.py,x,y,s.hue,.7+.3*e,s.lw*(1.25-.35*e));}
+      s.px=x;s.py=y;
+      if(u>=1 && Math.random()<.8)this.orb(x,y,rand(3,8),s.hue,1); return u<1;});
+    // Central magical core and concentric rune-like energy rings.
+    const pulse=1+.16*Math.sin(t*4.2), coreHue=(t*48)%360;
+    this.orb(cx,cy,22*pulse,coreHue,1);
+    for(let i=0;i<4;i++){const r=(52+i*38)*(1+Math.sin(t*1.7+i)*.035),a=(t*(.32+i*.09)+i*.8);ctx.save();ctx.translate(cx,cy);ctx.rotate(a);ctx.strokeStyle=`hsla(${(coreHue+i*55)%360},100%,82%,${.28-.045*i})`;ctx.lineWidth=1.2;ctx.setLineDash([3+i*2,9+i*3]);ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+    if(this.sparkRate>0&&this.rects.length){for(let k=this.sparkRate*dt*60;k>0;k--){if(Math.random()>Math.min(1,k))continue;const r=this.rects[(Math.random()*this.rects.length)|0];this.stars.push({x:rand(r.x,r.x+r.w),y:rand(r.y,r.y+r.h),vx:rand(-12,12),vy:rand(-18,18),drag:.985,life:0,max:rand(.5,1.4),size:rand(2,7),hue:magicHue(),rot:rand(0,6.28),spin:rand(-2,2)});}}
+    this.stars=this.stars.filter(s=>{s.life+=dt;if(s.life>=s.max)return false;s.x+=s.vx*dt;s.y+=s.vy*dt;s.vx*=s.drag;s.vy*=s.drag;s.rot+=s.spin*dt;this.star(s.x,s.y,s.size*Math.sin(Math.PI*s.life/s.max),s.rot,s.hue,1-s.life/s.max);return true;});
     requestAnimationFrame(this.loop);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Dark Fantasy depth FX: semi-real foliage, moon haze and blood     */
+/* ------------------------------------------------------------------ */
+class DarkFX {
+  constructor(canvas) {
+    this.c=canvas; this.ctx=canvas.getContext("2d"); this.resize=()=>{canvas.width=innerWidth;canvas.height=innerHeight;};
+    this.resize(); addEventListener("resize",this.resize); this.on=false; this.t0=0; this.last=0; this.parting=0; this.lunge=0; this.bloodRate=0; this.blood=[]; this.mist=[]; this.loop=this.loop.bind(this);
+    for(let i=0;i<26;i++)this.mist.push({x:rand(0,1),y:rand(.35,1),r:rand(.08,.24),s:rand(.008,.025),a:rand(.05,.16)});
+  }
+  start(){this.on=true;this.t0=this.last=performance.now();requestAnimationFrame(this.loop);}
+  stop(){this.on=false;removeEventListener("resize",this.resize);}
+  setParting(v=1){this.parting=v;}
+  setLunge(v=1){this.lunge=v;}
+  bloodBurst(x,y,n=70){for(let i=0;i<n&&this.blood.length<900;i++){const a=rand(-Math.PI*.95,-Math.PI*.05),s=rand(160,760);this.blood.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0,max:rand(.45,1.35),r:rand(1.5,6),g:rand(420,760)});}}
+  branch(x,y,tx,ty,w,a){const ctx=this.ctx,dx=tx-x,dy=ty-y,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;ctx.save();ctx.globalAlpha=a;ctx.strokeStyle="#0d1114";ctx.lineCap="round";ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x+dx*.45+nx*len*.12,y+dy*.45+ny*len*.12,tx,ty);ctx.stroke();ctx.strokeStyle="rgba(103,115,118,.16)";ctx.lineWidth=Math.max(1,w*.12);ctx.stroke();ctx.restore();}
+  loop(now){if(!this.on)return;const dt=Math.min(.04,(now-this.last)/1000);this.last=now;const t=(now-this.t0)/1000,{width:w,height:h}=this.c,ctx=this.ctx;
+    ctx.clearRect(0,0,w,h);ctx.globalCompositeOperation="source-over";
+    const moonX=w*.76,moonY=h*.17;
+    const mg=ctx.createRadialGradient(moonX,moonY,0,moonX,moonY,Math.min(w,h)*.34);mg.addColorStop(0,"rgba(210,222,235,.10)");mg.addColorStop(1,"rgba(150,165,185,0)");ctx.fillStyle=mg;ctx.fillRect(0,0,w,h);
+    for(const m of this.mist){m.x+=m.s*dt;if(m.x>1.15)m.x=-.15;const x=m.x*w,y=m.y*h+Math.sin(t*.25+m.x*8)*18,r=m.r*Math.min(w,h);const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(180,190,198,${m.a})`);g.addColorStop(1,"rgba(180,190,198,0)");ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,r*1.8,r*.38,0,0,Math.PI*2);ctx.fill();}
+    // Foreground branches retract to expose the reveal.
+    const open=this.parting* Math.min(1,Math.max(0,(t-.42)/1.25));
+    for(let i=0;i<14;i++){const side=i%2?1:-1,baseX=side<0?w*.02:w*.98,baseY=h*(.55+(i/14)*.5),tx=baseX+side*(w*(.18+.065*i))*(1-open*.98),ty=baseY-h*(.32+.02*i);this.branch(baseX,baseY,tx,ty,rand(5,15),.48);}
+    // Blood droplets only after the lunge, giving the reveal a physical impact.
+    if(this.bloodRate>0){for(let i=0;i<this.bloodRate*dt*70;i++){this.blood.push({x:w*.5+rand(-w*.12,w*.12),y:h*.55+rand(-h*.08,h*.08),vx:rand(-260,260),vy:rand(-80,260),life:0,max:rand(.8,1.8),r:rand(1.2,5),g:rand(300,650)});}}
+    this.blood=this.blood.filter(b=>{b.life+=dt;if(b.life>=b.max)return false;b.vy+=b.g*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;const a=1-b.life/b.max;ctx.fillStyle=`rgba(150,8,12,${a*.8})`;ctx.beginPath();ctx.ellipse(b.x,b.y,b.r,b.r*(1+Math.abs(b.vy)/420),Math.atan2(b.vy,b.vx),0,Math.PI*2);ctx.fill();return true;});
+    // Vignette depth.
+    const vg=ctx.createRadialGradient(w*.5,h*.48,Math.min(w,h)*.18,w*.5,h*.48,Math.max(w,h)*.72);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(.65,"rgba(0,0,0,.15)");vg.addColorStop(1,"rgba(0,0,0,.62)");ctx.fillStyle=vg;ctx.fillRect(0,0,w,h);
+    requestAnimationFrame(this.loop);
+  }
+}
+
 
 /* ------------------------------------------------------------------ */
 /*  Intro: shared scaffolding                                          */
@@ -643,26 +711,20 @@ INTRO.magic = {
   async run(ctx) {
     const { el } = ctx;
     const fx = own(new MagicFX(el.querySelector(".efx-magic")), ctx); fx.start();
-    if (!await ctx.until(2000)) return;
-    el.classList.add("impact");                                 // convergence: flash + rings + glitter
-    fx.burst(innerWidth / 2, innerHeight / 2, 160, 640);
-    if (!await ctx.until(2100)) return;
+    if (!await ctx.until(1700)) return;
+    el.classList.add("impact");
+    fx.burst(innerWidth / 2, innerHeight / 2, 220, 760);
+    if (!await ctx.until(2200)) return;
     const title = el.querySelector(".efx-title"), chars = [...title.querySelectorAll(".ch")];
-    const [mx] = [innerWidth / 2];
-    chars.forEach((ch, i) => {                                  // letters burst outward from the center
-      const [x] = centerOf(ch);
-      ch.style.setProperty("--dx", `${(mx - x).toFixed(0)}px`);
-      ch.style.setProperty("--rot", `${rand(-50, 50).toFixed(0)}deg`);
-      ch.style.animationDelay = `${i * 55}ms`;
-      ch.classList.add("on");
-    });
-    const rects = [...el.querySelectorAll(".efx-band, .efx-title")].map(n => { const r = n.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
-    fx.rects = rects; fx.sparkRate = 2.2;
-    if (!await ctx.until(2800)) return;
+    const mx = innerWidth / 2;
+    chars.forEach((ch, i) => { const [x] = centerOf(ch); ch.style.setProperty("--dx", `${(mx - x).toFixed(0)}px`); ch.style.setProperty("--rot", `${rand(-70,70).toFixed(0)}deg`); ch.style.animationDelay = `${i * 45}ms`; ch.classList.add("on"); });
+    fx.rects = [...el.querySelectorAll(".efx-band, .efx-title")].map(n => { const r=n.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height}; });
+    fx.sparkRate = 3.6;
+    if (!await ctx.until(3000)) return;
     el.classList.add("bands");
-    if (!await ctx.until(3400)) return;
+    if (!await ctx.until(3850)) return;
     title.classList.add("glow");
-    await finishIntro(ctx, () => { fx.sparkRate = 0; const [cx, cy] = centerOf(title); fx.burst(cx, cy, 90, 420); });
+    await finishIntro(ctx, () => { fx.sparkRate=0; const [cx,cy]=centerOf(title); fx.burst(cx,cy,180,560); });
   }
 };
 
@@ -752,6 +814,7 @@ INTRO.dark = {
     <div class="efx-dim"></div>
     <div class="efx-moon"></div>
     <div class="efx-fog f1"></div><div class="efx-fog f2"></div>
+    <canvas class="efx-dark-depth"></canvas>
     <div class="efx-stage-dark">${EYES_SVG}</div>
     <div class="efx-foliage left">${foliageSVG("left")}</div>
     <div class="efx-foliage right">${foliageSVG("right")}</div>
@@ -760,31 +823,30 @@ INTRO.dark = {
     <canvas class="efx-sparks"></canvas>
     <div class="efx-blackout"></div>${CLAWS_SVG}<div class="efx-redflash"></div>`,
   async run(ctx) {
-    const { el } = ctx;
-    const sparks = own(new Sparks(el.querySelector(".efx-sparks")), ctx);
-    if (!await ctx.until(450)) return;
-    el.classList.add("parting");                                 // brush is pushed aside
-    if (!await ctx.until(1500)) return;
-    el.classList.add("eyes");                                    // eyes open in the dark
-    if (!await ctx.until(2650)) return;
-    el.classList.add("lunge");                                   // it jumps
-    if (!await ctx.until(2900)) return;
-    el.classList.add("black");                                   // blackout (scene swaps at ~3000ms)
-    if (!await ctx.until(3050)) return;
-    el.classList.add("claws");
-    const W = innerWidth, H = innerHeight;
-    sparks.burst(W * .5, H * .5, { n: 90, speed: 900, life: [.6, 1.4], size: [3, 7], gravity: 900, colors: ["130,0,0", "180,12,12", "90,0,0"], add: false });
-    if (!await ctx.until(3350)) return;
-    el.classList.remove("black");
-    el.classList.add("bands", "impact");
-    const title = el.querySelector(".efx-title");
-    title.classList.add("slam");
-    title.querySelectorAll(".ch").forEach(c => c.classList.add("on"));
-    const [cx, cy] = centerOf(title);
-    sparks.burst(cx, cy, { n: 140, speed: 750, life: [.6, 1.5], size: [3, 8], gravity: 1000, colors: ["120,0,0", "175,10,10", "70,0,0"], add: false });
-    sparks.burst(cx, cy, { n: 40, speed: 350, life: [.5, 1.1], size: [1.5, 3], gravity: 40, colors: ["220,225,235"] });
-    startDrips(title, ctx);
-    await finishIntro(ctx);
+    const { el }=ctx;
+    const depth=own(new DarkFX(el.querySelector(".efx-dark-depth")),ctx); depth.start();
+    const sparks=own(new Sparks(el.querySelector(".efx-sparks")),ctx);
+    if(!await ctx.until(380))return;
+    el.classList.add("parting"); depth.setParting(1);
+    if(!await ctx.until(1420))return;
+    el.classList.add("eyes");
+    if(!await ctx.until(2460))return;
+    el.classList.add("lunge"); depth.setLunge(1);
+    if(!await ctx.until(2820))return;
+    el.classList.add("black");
+    if(!await ctx.until(3040))return;
+    el.classList.add("claws"); depth.bloodRate=8;
+    const W=innerWidth,H=innerHeight;
+    sparks.burst(W*.5,H*.5,{n:120,speed:980,life:[.5,1.4],size:[2,7],gravity:980,colors:["120,0,0","195,10,12","70,0,0"],add:false});
+    depth.bloodBurst(W*.5,H*.52,95);
+    if(!await ctx.until(3360))return;
+    el.classList.remove("black"); el.classList.add("bands","impact");
+    const title=el.querySelector(".efx-title"); title.classList.add("slam"); title.querySelectorAll(".ch").forEach(c=>c.classList.add("on"));
+    const [cx,cy]=centerOf(title);
+    sparks.burst(cx,cy,{n:170,speed:780,life:[.6,1.5],size:[2,7],gravity:1050,colors:["100,0,0","175,8,10","55,0,0"],add:false});
+    sparks.burst(cx,cy,{n:55,speed:360,life:[.5,1.1],size:[1.5,3],gravity:40,colors:["220,225,235"]});
+    depth.bloodRate=14; startDrips(title,ctx);
+    await finishIntro(ctx,()=>{depth.bloodRate=0;});
   }
 };
 

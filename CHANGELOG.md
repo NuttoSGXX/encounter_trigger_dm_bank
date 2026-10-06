@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.5.0 — Semi-Real FX Overhaul
+
+- Redesigned Magical FX with semi-real magical orbs, converging energy trails, arcane core, rings, bloom, and spark bursts.
+- Redesigned Dark Fantasy FX with layered foliage, moon haze, glowing eyes, creature lunge, impact particles, blood splatter, and blood-drip title treatment.
+- Compact launcher is draggable by its header and remains GM-only.
+- Preserved scene, party, hostile-token, socket, 3D d20 initiative, initiative announcement, and automatic combat-start flow.
+
+## [0.4.0] - Visual FX Rework
+
+### Visual FX Rework
+- Rebuilt **Magical** intro from the ground up with layered arcane orbs, converging filaments, chromatic cores, orbiting nodes, rune-like energy rings, bloom, and physically moving particles.
+- Rebuilt **Dark Fantasy** depth FX with moon haze, semi-real foreground branches, animated brush-parting reveal, impact blood particles, wet-looking drips, and stronger lunge/impact depth.
+- Kept the cinematic `ENCOUNTER` typography and existing encounter/initiative flow intact.
+- Added a direct **Drag to Move** interaction for the compact GM launcher using Foundry VTT v14 ApplicationV2 positioning.
+
+
 ## 0.4.0 — Visual Overhaul
 
 ### Added
