@@ -88,7 +88,7 @@ class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "efx-launcher", tag: "form", classes: ["efx-launcher"],
     position: { width: 440, height: "auto" },
-    window: { title: "Encounter FX", icon: "fa-solid fa-fire-flame-curved", resizable: false },
+    window: { title: "Encounter FX", icon: "fa-solid fa-fire-flame-curved", resizable: false, positioned: true },
     actions: { preview: EncounterLauncher.#onPreview },
     form: { handler: EncounterLauncher.#onSubmit, closeOnSubmit: true }
   };
@@ -129,166 +129,28 @@ class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
-/** Parallax, floating motes, tilt cards and scene search for the launcher UI. */
+/** Visual decoration only. The outer ApplicationV2 header is the drag handle. */
 function decorateLauncher(el, app) {
   if (!el || el._efxDecorated) return;
   el._efxDecorated = true;
-  // Foundry V14 ApplicationV2 already exposes a draggable frame. Re-bind the compact header
-  // to the same position API so the entire occult launcher can be picked up from its title area.
-  const dragHandle = el.querySelector(".efx-compact-head");
-  if (dragHandle && app?.setPosition) {
-    dragHandle.title = "Drag to move Encounter FX";
-    dragHandle.style.cursor = "grab";
-    dragHandle.addEventListener("pointerdown", ev => {
-      if (ev.button !== 0 || ev.target.closest("button,input,select,label,a")) return;
-      ev.preventDefault(); app.bringToFront?.(); dragHandle.setPointerCapture?.(ev.pointerId);
-      const start = { x: ev.clientX, y: ev.clientY, left: app.position.left ?? 0, top: app.position.top ?? 0 };
-      dragHandle.style.cursor = "grabbing";
-      const move = e => app.setPosition({ left: start.left + e.clientX - start.x, top: start.top + e.clientY - start.y });
-      const up = e => { dragHandle.style.cursor = "grab"; try { dragHandle.releasePointerCapture?.(e.pointerId); } catch (_) {} dragHandle.removeEventListener("pointermove", move); dragHandle.removeEventListener("pointerup", up); dragHandle.removeEventListener("pointercancel", up); };
-      dragHandle.addEventListener("pointermove", move); dragHandle.addEventListener("pointerup", up); dragHandle.addEventListener("pointercancel", up);
-    });
-  }
+  // Let Foundry V14 own dragging through its native ApplicationV2 frame.
+  // The inner Encounter header is intentionally not presented as a fake drag handle.
+  const nativeHeader = app?.window?.header || el.querySelector(".window-header");
+  if (nativeHeader) nativeHeader.style.cursor = "grab";
   const motes = el.querySelector(".bg-motes");
   if (motes) {
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < 22; i++) {
       const m = document.createElement("i");
-      m.style.cssText = `left:${rand(0, 100).toFixed(1)}%;--s:${rand(2, 5).toFixed(1)}px;--d:${rand(7, 16).toFixed(1)}s;--dl:-${rand(0, 16).toFixed(1)}s;--dx:${rand(-30, 30).toFixed(0)}px`;
+      m.style.cssText = `left:${rand(0,100).toFixed(1)}%;--s:${rand(1.5,4).toFixed(1)}px;--d:${rand(8,18).toFixed(1)}s;--dl:-${rand(0,18).toFixed(1)}s;--dx:${rand(-22,22).toFixed(0)}px`;
       motes.appendChild(m);
     }
   }
   el.addEventListener("pointermove", ev => {
     const r = el.getBoundingClientRect();
-    el.style.setProperty("--mx", ((ev.clientX - r.left) / r.width - 0.5).toFixed(3));
-    el.style.setProperty("--my", ((ev.clientY - r.top) / r.height - 0.5).toFixed(3));
-    const card = ev.target.closest?.(".efx-card");
-    if (card) {
-      const cr = card.getBoundingClientRect();
-      card.style.setProperty("--tx", ((ev.clientX - cr.left) / cr.width - 0.5).toFixed(3));
-      card.style.setProperty("--ty", ((ev.clientY - cr.top) / cr.height - 0.5).toFixed(3));
-    }
+    if (!r.width || !r.height) return;
+    el.style.setProperty("--mx", ((ev.clientX-r.left)/r.width-.5).toFixed(3));
+    el.style.setProperty("--my", ((ev.clientY-r.top)/r.height-.5).toFixed(3));
   });
-  el.addEventListener("pointerout", ev => {
-    const card = ev.target.closest?.(".efx-card");
-    if (card) { card.style.setProperty("--tx", 0); card.style.setProperty("--ty", 0); }
-  });
-  const search = el.querySelector(".efx-search");
-  search?.addEventListener("input", () => {
-    const q = search.value.trim().toLowerCase();
-    el.querySelectorAll(".efx-scene").forEach(s => { s.hidden = q && !s.dataset.name.includes(q); });
-  });
-}
-
-/* ------------------------------------------------------------------ */
-/*  GM orchestration                                                   */
-/* ------------------------------------------------------------------ */
-const GM = { combatId: null, pcs: new Map(), rolled: new Set(), finishing: false, style: "fire" };
-
-function broadcast(msg) { game.socket.emit(SOCKET, msg); onMessage(msg); }
-const ownersOf = c => game.users.filter(u => !u.isGM && c.actor?.testUserPermission(u, "OWNER"));
-
-async function launch({ sceneId, actorIds = [], hostile = true, style = "fire" }) {
-  if (!game.user.isGM) return;
-  if (!STYLES[style]) style = "fire";
-  const scene = game.scenes.get(sceneId);
-  if (!scene) return ui.notifications.error("Encounter FX: scene not found.");
-  const T = STYLES[style].t, t0 = Date.now();
-  GM.pcs = new Map(); GM.rolled = new Set(); GM.finishing = false; GM.combatId = null; GM.style = style;
-
-  broadcast({ action: "intro", style });
-  await sleep(T.switch);
-
-  // 1) Move everyone to the target scene while the screen is covered
-  const needActivate = !scene.active;
-  const needView = game.scenes.viewed?.id !== scene.id;
-  if (needActivate || needView) {
-    const ready = new Promise(r => { Hooks.once("canvasReady", r); setTimeout(r, 6000); });
-    if (needActivate) await scene.activate(); else await scene.view();
-    await ready;
-  }
-
-  // 2) Real Combat document: find or create, then add tokens
-  try {
-    const combat = await ensureCombat(scene, actorIds, hostile);
-    GM.combatId = combat.id;
-
-    // 3) NPCs (and hidden combatants) roll silently; player characters wait for their own die
-    const updates = [];
-    for (const c of combat.combatants) {
-      const owners = ownersOf(c);
-      if (owners.length && !c.hidden) {
-        GM.pcs.set(c.id, { id: c.id, name: c.name, img: c.img, player: owners.map(u => u.name).join(", "), owners: owners.map(u => u.id) });
-      } else {
-        const r = await rollInit(c);
-        updates.push({ _id: c.id, initiative: r.total });
-      }
-    }
-    if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
-  } catch (err) {
-    console.error(`${ID} | combat setup failed`, err);
-    ui.notifications.error("Encounter FX: failed to set up the Combat (see console).");
-    return broadcast({ action: "close" });
-  }
-
-  await sleep(Math.max(0, T.dice - (Date.now() - t0)));
-  if (!GM.pcs.size) { GM.finishing = true; return finishOrder(0); }
-  broadcast({ action: "dice", dice: [...GM.pcs.values()], style });
-}
-
-async function ensureCombat(scene, actorIds, hostile) {
-  let combat = game.combats.find(c => c.scene?.id === scene.id);
-  if (!combat) combat = await getDocumentClass("Combat").create({ scene: scene.id, active: true });
-  if (!combat.active && typeof combat.activate === "function") await combat.activate();
-
-  const wanted = new Set(actorIds), found = new Set(), data = [];
-  for (const t of scene.tokens) {
-    const isPC = t.actorId && wanted.has(t.actorId);
-    const isFoe = hostile && t.disposition === CONST.TOKEN_DISPOSITIONS.HOSTILE;
-    if (!isPC && !isFoe) continue;
-    if (isPC) found.add(t.actorId);
-    if (combat.combatants.some(c => c.tokenId === t.id)) continue;
-    data.push({ tokenId: t.id, sceneId: scene.id, actorId: t.actorId, hidden: t.hidden });
-  }
-  if (data.length) await combat.createEmbeddedDocuments("Combatant", data);
-
-  const missing = actorIds.filter(id => !found.has(id)).map(id => game.actors.get(id)?.name).filter(Boolean);
-  if (missing.length) ui.notifications.warn(`No token in this scene for: ${missing.join(", ")}`);
-  return combat;
-}
-
-async function rollInit(c) {
-  const roll = c.getInitiativeRoll();
-  await roll.evaluate();
-  const d20 = roll.dice.find(d => d.faces === 20);
-  const kept = d20?.results.find(r => r.active)?.result;
-  return { nat: clamp(kept ?? Math.round(roll.total), 1, 20), total: roll.total };
-}
-
-async function gmRollOne(id, userId) {
-  const combat = game.combats.get(GM.combatId);
-  const c = combat?.combatants.get(id);
-  const user = game.users.get(userId);
-  if (!c || !user || !GM.pcs.has(id) || GM.rolled.has(id)) return;
-  if (!user.isGM && !c.actor?.testUserPermission(user, "OWNER")) return;
-  GM.rolled.add(id);
-  const r = await rollInit(c);
-  await c.update({ initiative: r.total });
-  broadcast({ action: "rolled", id, nat: r.nat, total: Math.round(r.total * 100) / 100 });
-  if (GM.rolled.size >= GM.pcs.size && !GM.finishing) { GM.finishing = true; finishOrder(2300); }
-}
-
-async function finishOrder(wait) {
-  await sleep(wait);
-  const combat = game.combats.get(GM.combatId);
-  if (!combat) return broadcast({ action: "close" });
-  const order = combat.combatants.contents
-    .filter(c => !c.hidden && (SHOW_NPC_IN_ORDER || GM.pcs.has(c.id)))
-    .sort((a, b) => (b.initiative ?? -999) - (a.initiative ?? -999))
-    .map(c => ({ name: c.name, img: c.img, total: Math.round((c.initiative ?? 0) * 100) / 100, pc: GM.pcs.has(c.id) }));
-  broadcast({ action: "order", order, style: GM.style });
-  await sleep(1400 + order.length * 180 + 3200);
-  try { await combat.startCombat(); ui.combat?.activate?.(); } catch (e) { console.warn(`${ID} |`, e); }
-  broadcast({ action: "close" });
 }
 
 /* ------------------------------------------------------------------ */
@@ -493,90 +355,39 @@ const magicHue = () => MAGIC_HUES[(Math.random() * MAGIC_HUES.length) | 0] + ran
 
 class MagicFX {
   constructor(canvas) {
-    this.c = canvas; this.ctx = canvas.getContext("2d");
-    this.resize = () => { canvas.width = innerWidth; canvas.height = innerHeight; this.w = canvas.width; this.h = canvas.height; };
-    this.resize(); addEventListener("resize", this.resize);
-    this.streams = []; this.stars = []; this.orbs = []; this.rings = []; this.rects = [];
-    this.sparkRate = 0; this.on = false; this.t0 = 0; this.last = 0; this.loop = this.loop.bind(this);
-    const count = 11;
-    for (let i = 0; i < count; i++) this.orbs.push({
-      a: rand(0, Math.PI * 2), r: rand(.25, .72), speed: rand(.16, .42) * (Math.random() < .5 ? -1 : 1),
-      hue: magicHue(), size: rand(6, 15), phase: rand(0, 6.28), tilt: rand(.55, .9), life: rand(.3, 1)
-    });
-  }
-  start() { this.on = true; this.t0 = this.last = performance.now(); requestAnimationFrame(this.loop); }
-  stop() { this.on = false; removeEventListener("resize", this.resize); }
-  burst(x, y, n = 120, speed = 620) {
-    for (let i = 0; i < n && this.stars.length < 1800; i++) {
-      const a = rand(0, Math.PI * 2), s = speed * rand(.18, 1.05);
-      this.stars.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, drag: rand(.91, .975), life: 0, max: rand(.65, 1.7), size: rand(2, 8), hue: magicHue(), rot: rand(0, 6.28), spin: rand(-5, 5) });
+    this.c=canvas; this.ctx=canvas.getContext("2d");
+    this.resize=()=>{canvas.width=innerWidth;canvas.height=innerHeight;this.w=canvas.width;this.h=canvas.height;};
+    this.resize(); addEventListener("resize",this.resize);
+    this.on=false; this.t0=0; this.last=0; this.orbs=[]; this.ribbons=[]; this.sparks=[]; this.burstAt=1.72; this.loop=this.loop.bind(this);
+    const count=9;
+    for(let i=0;i<count;i++){
+      const a=(i/count)*Math.PI*2+rand(-.16,.16);
+      this.orbs.push({a, radius:rand(.28,.46), speed:rand(.12,.22)*(Math.random()<.5?-1:1), hue:MAGIC_HUES[i%MAGIC_HUES.length]+rand(-8,8), size:rand(18,31), phase:rand(0,6.28), depth:rand(.75,1.25)});
     }
+    for(let i=0;i<12;i++) this.ribbons.push({side:i%4,offset:rand(-.42,.42),phase:rand(0,6.28),hue:MAGIC_HUES[i%MAGIC_HUES.length],width:rand(1.5,3.6),delay:rand(0,.7)});
   }
-  orb(x, y, size, hue, alpha = 1) {
-    const ctx = this.ctx;
-    ctx.globalCompositeOperation = "lighter";
-    const g = ctx.createRadialGradient(x, y, 0, x, y, size * 5);
-    g.addColorStop(0, `hsla(${hue},100%,96%,${.95 * alpha})`);
-    g.addColorStop(.08, `hsla(${hue},100%,86%,${.9 * alpha})`);
-    g.addColorStop(.26, `hsla(${hue},100%,66%,${.55 * alpha})`);
-    g.addColorStop(1, `hsla(${hue},100%,50%,0)`);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, size * 5, 0, Math.PI * 2); ctx.fill();
-    const core = ctx.createRadialGradient(x - size*.25, y - size*.25, 0, x, y, size);
-    core.addColorStop(0, `rgba(255,255,255,${alpha})`);
-    core.addColorStop(.25, `hsla(${hue},100%,92%,${alpha})`);
-    core.addColorStop(.7, `hsla(${hue},100%,55%,${.85*alpha})`);
-    core.addColorStop(1, `hsla(${hue},100%,35%,0)`);
-    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = `hsla(${hue},100%,88%,${.7*alpha})`; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.arc(x, y, size * 1.7, 0, Math.PI * 2); ctx.stroke();
+  start(){this.on=true;this.t0=this.last=performance.now();requestAnimationFrame(this.loop);}
+  stop(){this.on=false;removeEventListener("resize",this.resize);}
+  burst(x,y,n=150,speed=650){for(let i=0;i<n&&this.sparks.length<1200;i++){const a=rand(0,Math.PI*2),sp=speed*rand(.2,1),h=magicHue();this.sparks.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0,max:rand(.45,1.2),size:rand(1.5,4.5),h:h});}}
+  orb(x,y,size,hue,alpha=1){const c=this.ctx;c.save();c.globalCompositeOperation="lighter";
+    const glow=c.createRadialGradient(x,y,0,x,y,size*5);glow.addColorStop(0,`hsla(${hue},100%,98%,${.85*alpha})`);glow.addColorStop(.18,`hsla(${hue},100%,78%,${.58*alpha})`);glow.addColorStop(1,`hsla(${hue},100%,45%,0)`);c.fillStyle=glow;c.beginPath();c.arc(x,y,size*5,0,Math.PI*2);c.fill();
+    const ball=c.createRadialGradient(x-size*.35,y-size*.4,size*.05,x,y,size);ball.addColorStop(0,`rgba(255,255,255,${alpha})`);ball.addColorStop(.18,`hsla(${hue},100%,92%,${alpha})`);ball.addColorStop(.55,`hsla(${hue},90%,58%,${.95*alpha})`);ball.addColorStop(.82,`hsla(${hue},90%,34%,${.85*alpha})`);ball.addColorStop(1,`hsla(${hue},100%,20%,0)`);c.fillStyle=ball;c.beginPath();c.arc(x,y,size,0,Math.PI*2);c.fill();
+    c.strokeStyle=`hsla(${hue},100%,92%,${.6*alpha})`;c.lineWidth=1.2;c.beginPath();c.arc(x,y,size*1.28,0,Math.PI*2);c.stroke();
+    c.strokeStyle=`hsla(${(hue+45)%360},100%,88%,${.38*alpha})`;c.lineWidth=.8;c.beginPath();c.arc(x,y,size*1.7,-.8,1.9);c.stroke();c.restore();
   }
-  filament(x1,y1,x2,y2,hue,alpha=1,lw=1.5) {
-    const ctx=this.ctx, dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy)||1, nx=-dy/len, ny=dx/len;
-    ctx.globalCompositeOperation="lighter"; ctx.lineCap="round";
-    const grad=ctx.createLinearGradient(x1,y1,x2,y2);
-    grad.addColorStop(0,`hsla(${hue},100%,75%,0)`); grad.addColorStop(.35,`hsla(${hue},100%,78%,${.38*alpha})`); grad.addColorStop(1,`hsla(${hue},100%,96%,${alpha})`);
-    ctx.strokeStyle=grad; ctx.lineWidth=lw;
-    ctx.beginPath(); ctx.moveTo(x1,y1);
-    const bend=(Math.sin((x1+x2)*.008+(y1+y2)*.004)*.08)*len;
-    ctx.quadraticCurveTo((x1+x2)/2+nx*bend,(y1+y2)/2+ny*bend,x2,y2); ctx.stroke();
-  }
-  star(x, y, s, rot, hue, alpha=1) {
-    const ctx=this.ctx; ctx.globalCompositeOperation="lighter";
-    const g=ctx.createRadialGradient(x,y,0,x,y,s*2.6); g.addColorStop(0,`hsla(${hue},100%,90%,${.35*alpha})`); g.addColorStop(1,`hsla(${hue},100%,70%,0)`);
-    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,s*2.6,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle=`hsla(${hue},100%,94%,${alpha})`; ctx.beginPath();
-    for(let i=0;i<8;i++){const a=rot+i*Math.PI/4,r=i%2?s*.18:s;const px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);} ctx.closePath();ctx.fill();
-  }
-  loop(now) {
-    if (!this.on) return;
-    const dt=Math.min(.04,(now-this.last)/1000); this.last=now; const t=(now-this.t0)/1000;
-    const {width:w,height:h}=this.c,ctx=this.ctx,cx=w/2,cy=h/2;
-    ctx.globalCompositeOperation="source-over"; ctx.fillStyle="rgba(4,2,12,.19)"; ctx.fillRect(0,0,w,h);
-    ctx.globalCompositeOperation="lighter";
-    // Deep arcane orbit: colored orbs physically travel inward instead of flat gradient rings.
-    for(const o of this.orbs){
-      o.a += o.speed*dt; const rr=Math.min(w,h)*o.r*(1-.34*ss(0,2.8,t));
-      const x=cx+Math.cos(o.a)*rr, y=cy+Math.sin(o.a)*rr*o.tilt;
-      const tx=cx+Math.cos(o.a-.055)*rr, ty=cy+Math.sin(o.a-.055)*rr*o.tilt;
-      this.filament(tx,ty,x,y,o.hue,.8,1.3);
-      this.orb(x,y,o.size*(.85+.15*Math.sin(t*3+o.phase)),o.hue,.9);
-      if(Math.random()<.08) this.star(x+rand(-10,10),y+rand(-10,10),rand(2,5),rand(0,6.28),o.hue,.8);
-    }
-    // Converging ribbon filaments from the screen edge.
-    if(t<2.45){
-      const n=Math.round(15*dt*60);
-      for(let i=0;i<n;i++) this.streams.push({a:rand(0,Math.PI*2),R:Math.hypot(w,h)*rand(.48,.78),turns:rand(.35,.95),t:0,dur:rand(.95,1.65),hue:magicHue(),lw:rand(1.1,3.4),px:null,py:null});
-    }
-    this.streams=this.streams.filter(s=>{s.t+=dt;const u=Math.min(1,s.t/s.dur),e=ss(0,1,u),r=s.R*(1-e),ang=s.a+s.turns*Math.PI*2*e,x=cx+Math.cos(ang)*r,y=cy+Math.sin(ang)*r*.74;
-      if(s.px!==null){this.filament(s.px,s.py,x,y,s.hue,.7+.3*e,s.lw*(1.25-.35*e));}
-      s.px=x;s.py=y;
-      if(u>=1 && Math.random()<.8)this.orb(x,y,rand(3,8),s.hue,1); return u<1;});
-    // Central magical core and concentric rune-like energy rings.
-    const pulse=1+.16*Math.sin(t*4.2), coreHue=(t*48)%360;
-    this.orb(cx,cy,22*pulse,coreHue,1);
-    for(let i=0;i<4;i++){const r=(52+i*38)*(1+Math.sin(t*1.7+i)*.035),a=(t*(.32+i*.09)+i*.8);ctx.save();ctx.translate(cx,cy);ctx.rotate(a);ctx.strokeStyle=`hsla(${(coreHue+i*55)%360},100%,82%,${.28-.045*i})`;ctx.lineWidth=1.2;ctx.setLineDash([3+i*2,9+i*3]);ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();ctx.restore();}
-    if(this.sparkRate>0&&this.rects.length){for(let k=this.sparkRate*dt*60;k>0;k--){if(Math.random()>Math.min(1,k))continue;const r=this.rects[(Math.random()*this.rects.length)|0];this.stars.push({x:rand(r.x,r.x+r.w),y:rand(r.y,r.y+r.h),vx:rand(-12,12),vy:rand(-18,18),drag:.985,life:0,max:rand(.5,1.4),size:rand(2,7),hue:magicHue(),rot:rand(0,6.28),spin:rand(-2,2)});}}
-    this.stars=this.stars.filter(s=>{s.life+=dt;if(s.life>=s.max)return false;s.x+=s.vx*dt;s.y+=s.vy*dt;s.vx*=s.drag;s.vy*=s.drag;s.rot+=s.spin*dt;this.star(s.x,s.y,s.size*Math.sin(Math.PI*s.life/s.max),s.rot,s.hue,1-s.life/s.max);return true;});
+  ribbon(x1,y1,x2,y2,hue,a,lw){const c=this.ctx,dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;const bend=Math.sin((performance.now()/900)+x1*.003)*len*.08;c.save();c.globalCompositeOperation="lighter";c.lineCap="round";const g=c.createLinearGradient(x1,y1,x2,y2);g.addColorStop(0,`hsla(${hue},100%,70%,0)`);g.addColorStop(.55,`hsla(${hue},100%,78%,${.48*a})`);g.addColorStop(1,`hsla(${hue},100%,98%,${a})`);c.strokeStyle=g;c.lineWidth=lw;c.shadowBlur=10;c.shadowColor=`hsla(${hue},100%,70%,${.45*a})`;c.beginPath();c.moveTo(x1,y1);c.quadraticCurveTo((x1+x2)/2+nx*bend,(y1+y2)/2+ny*bend,x2,y2);c.stroke();c.restore();}
+  star(x,y,s,h,a){const c=this.ctx;c.save();c.globalCompositeOperation="lighter";c.fillStyle=`hsla(${h},100%,94%,${a})`;c.shadowBlur=12;c.shadowColor=`hsla(${h},100%,70%,${a})`;c.beginPath();for(let i=0;i<8;i++){const ang=i*Math.PI/4,r=i%2?s*.16:s;const px=x+Math.cos(ang)*r,py=y+Math.sin(ang)*r;i?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.fill();c.restore();}
+  loop(now){if(!this.on)return;const dt=Math.min(.04,(now-this.last)/1000);this.last=now;const t=(now-this.t0)/1000,{width:w,height:h}=this.c,c=this.ctx,cx=w*.5,cy=h*.5;
+    c.clearRect(0,0,w,h);
+    const progress=ss(.15,2.4,t), coreScale=1+.18*Math.sin(t*4);
+    // A restrained field: nine large luminous orbs orbit, then collapse into the center.
+    for(const o of this.orbs){o.a+=o.speed*dt;const rr=Math.min(w,h)*o.radius*(1-.58*progress);const x=cx+Math.cos(o.a)*rr,y=cy+Math.sin(o.a)*rr*.68;const px=cx+Math.cos(o.a-.045)*rr,py=cy+Math.sin(o.a-.045)*rr*.68;this.ribbon(px,py,x,y,o.hue,.72,o.depth);this.orb(x,y,o.size*(1-.35*progress),o.hue,.92);if(Math.random()<.045)this.star(x+rand(-8,8),y+rand(-8,8),rand(3,7),o.hue,.8);}
+    // Sixteen elegant filaments, not a noisy particle storm.
+    if(t<2.25){for(const r of this.ribbons){if(t<r.delay)continue;const u=ss(r.delay,2.35,t),edge=Math.hypot(w,h)*.62*(1-u);let x=cx,y=cy;if(r.side===0){x=0+r.offset*w*.35;y=cy+r.offset*h+Math.sin(t+r.phase)*h*.04;}else if(r.side===1){x=w+r.offset*w*.35;y=cy+r.offset*h+Math.sin(t+r.phase)*h*.04;}else if(r.side===2){x=cx+r.offset*w;y=0+r.offset*h*.28;}else{x=cx+r.offset*w;y=h+r.offset*h*.28;}const ang=Math.atan2(cy-y,cx-x);const sx=x,sy=y,ex=cx+Math.cos(ang+Math.sin(t+r.phase)*.18)*edge,ey=cy+Math.sin(ang+Math.sin(t+r.phase)*.18)*edge;this.ribbon(sx,sy,ex,ey,r.hue,.7,r.width*(1+.5*(1-u)));}}
+    // Central arcane core: layered spheres instead of flat rings.
+    this.orb(cx,cy,24*coreScale,(t*35)%360,1);c.save();c.globalCompositeOperation="lighter";for(let i=0;i<3;i++){const r=58+i*28+Math.sin(t*1.8+i)*3;c.strokeStyle=`hsla(${(t*35+i*80)%360},100%,82%,${.18-i*.035})`;c.lineWidth=1;c.setLineDash([4+i*2,11+i*4]);c.beginPath();c.arc(cx,cy,r,t*(.25+i*.12),t*(.25+i*.12)+Math.PI*1.7);c.stroke();}c.restore();
+    if(t>1.65){const k=clamp((t-1.65)/.65,0,1);for(let i=0;i<Math.floor(28*k);i++)this.star(cx+rand(-180,180)*k,cy+rand(-110,110)*k,rand(2,5),magicHue(),.9*(1-k*.35));}
+    this.sparks=this.sparks.filter(p=>{p.life+=dt;if(p.life>=p.max)return false;p.vx*=.985;p.vy*=.985;p.x+=p.vx*dt;p.y+=p.vy*dt;this.star(p.x,p.y,p.size*(1-p.life/p.max),p.h,1-p.life/p.max);return true;});
     requestAnimationFrame(this.loop);
   }
 }
@@ -585,152 +396,23 @@ class MagicFX {
 /*  Dark Fantasy depth FX: semi-real foliage, moon haze and blood     */
 /* ------------------------------------------------------------------ */
 class DarkFX {
-  constructor(canvas) {
-    this.c=canvas; this.ctx=canvas.getContext("2d"); this.resize=()=>{canvas.width=innerWidth;canvas.height=innerHeight;};
-    this.resize(); addEventListener("resize",this.resize); this.on=false; this.t0=0; this.last=0; this.parting=0; this.lunge=0; this.bloodRate=0; this.blood=[]; this.mist=[]; this.loop=this.loop.bind(this);
-    for(let i=0;i<26;i++)this.mist.push({x:rand(0,1),y:rand(.35,1),r:rand(.08,.24),s:rand(.008,.025),a:rand(.05,.16)});
-  }
+  constructor(canvas){this.c=canvas;this.ctx=canvas.getContext("2d");this.resize=()=>{canvas.width=innerWidth;canvas.height=innerHeight;};this.resize();addEventListener("resize",this.resize);this.on=false;this.t0=0;this.last=0;this.parting=0;this.lunge=0;this.bloodRate=0;this.blood=[];this.mist=[];this.loop=this.loop.bind(this);for(let i=0;i<14;i++)this.mist.push({x:rand(0,1),y:rand(.5,1),r:rand(.08,.2),s:rand(.006,.018),a:rand(.04,.11)});}
   start(){this.on=true;this.t0=this.last=performance.now();requestAnimationFrame(this.loop);}
   stop(){this.on=false;removeEventListener("resize",this.resize);}
-  setParting(v=1){this.parting=v;}
-  setLunge(v=1){this.lunge=v;}
-  bloodBurst(x,y,n=70){for(let i=0;i<n&&this.blood.length<900;i++){const a=rand(-Math.PI*.95,-Math.PI*.05),s=rand(160,760);this.blood.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0,max:rand(.45,1.35),r:rand(1.5,6),g:rand(420,760)});}}
-  branch(x,y,tx,ty,w,a){const ctx=this.ctx,dx=tx-x,dy=ty-y,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;ctx.save();ctx.globalAlpha=a;ctx.strokeStyle="#0d1114";ctx.lineCap="round";ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x+dx*.45+nx*len*.12,y+dy*.45+ny*len*.12,tx,ty);ctx.stroke();ctx.strokeStyle="rgba(103,115,118,.16)";ctx.lineWidth=Math.max(1,w*.12);ctx.stroke();ctx.restore();}
-  loop(now){if(!this.on)return;const dt=Math.min(.04,(now-this.last)/1000);this.last=now;const t=(now-this.t0)/1000,{width:w,height:h}=this.c,ctx=this.ctx;
-    ctx.clearRect(0,0,w,h);ctx.globalCompositeOperation="source-over";
-    const moonX=w*.76,moonY=h*.17;
-    const mg=ctx.createRadialGradient(moonX,moonY,0,moonX,moonY,Math.min(w,h)*.34);mg.addColorStop(0,"rgba(210,222,235,.10)");mg.addColorStop(1,"rgba(150,165,185,0)");ctx.fillStyle=mg;ctx.fillRect(0,0,w,h);
-    for(const m of this.mist){m.x+=m.s*dt;if(m.x>1.15)m.x=-.15;const x=m.x*w,y=m.y*h+Math.sin(t*.25+m.x*8)*18,r=m.r*Math.min(w,h);const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(180,190,198,${m.a})`);g.addColorStop(1,"rgba(180,190,198,0)");ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,r*1.8,r*.38,0,0,Math.PI*2);ctx.fill();}
-    // Foreground branches retract to expose the reveal.
-    const open=this.parting* Math.min(1,Math.max(0,(t-.42)/1.25));
-    for(let i=0;i<14;i++){const side=i%2?1:-1,baseX=side<0?w*.02:w*.98,baseY=h*(.55+(i/14)*.5),tx=baseX+side*(w*(.18+.065*i))*(1-open*.98),ty=baseY-h*(.32+.02*i);this.branch(baseX,baseY,tx,ty,rand(5,15),.48);}
-    // Blood droplets only after the lunge, giving the reveal a physical impact.
-    if(this.bloodRate>0){for(let i=0;i<this.bloodRate*dt*70;i++){this.blood.push({x:w*.5+rand(-w*.12,w*.12),y:h*.55+rand(-h*.08,h*.08),vx:rand(-260,260),vy:rand(-80,260),life:0,max:rand(.8,1.8),r:rand(1.2,5),g:rand(300,650)});}}
-    this.blood=this.blood.filter(b=>{b.life+=dt;if(b.life>=b.max)return false;b.vy+=b.g*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;const a=1-b.life/b.max;ctx.fillStyle=`rgba(150,8,12,${a*.8})`;ctx.beginPath();ctx.ellipse(b.x,b.y,b.r,b.r*(1+Math.abs(b.vy)/420),Math.atan2(b.vy,b.vx),0,Math.PI*2);ctx.fill();return true;});
-    // Vignette depth.
-    const vg=ctx.createRadialGradient(w*.5,h*.48,Math.min(w,h)*.18,w*.5,h*.48,Math.max(w,h)*.72);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(.65,"rgba(0,0,0,.15)");vg.addColorStop(1,"rgba(0,0,0,.62)");ctx.fillStyle=vg;ctx.fillRect(0,0,w,h);
+  setParting(v=1){this.parting=v;} setLunge(v=1){this.lunge=v;}
+  bloodBurst(x,y,n=55){for(let i=0;i<n&&this.blood.length<650;i++){const a=rand(-Math.PI*.92,-Math.PI*.08),sp=rand(130,520);this.blood.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0,max:rand(.55,1.45),r:rand(1.5,4.5),g:rand(320,620)});}}
+  branch(x,y,tx,ty,w,a){const c=this.ctx,dx=tx-x,dy=ty-y,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;c.save();c.globalAlpha=a;c.lineCap="round";c.strokeStyle="#080b0d";c.lineWidth=w;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+dx*.45+nx*len*.1,y+dy*.45+ny*len*.1,tx,ty);c.stroke();c.strokeStyle="rgba(125,138,142,.12)";c.lineWidth=Math.max(1,w*.11);c.stroke();c.restore();}
+  loop(now){if(!this.on)return;const dt=Math.min(.04,(now-this.last)/1000);this.last=now;const t=(now-this.t0)/1000,{width:w,height:h}=this.c,c=this.ctx;c.clearRect(0,0,w,h);
+    const moonX=w*.78,moonY=h*.16;const mg=c.createRadialGradient(moonX,moonY,0,moonX,moonY,Math.min(w,h)*.4);mg.addColorStop(0,"rgba(225,232,240,.14)");mg.addColorStop(.25,"rgba(190,205,220,.07)");mg.addColorStop(1,"rgba(120,140,160,0)");c.fillStyle=mg;c.fillRect(0,0,w,h);
+    for(const m of this.mist){m.x+=m.s*dt;if(m.x>1.1)m.x=-.1;const x=m.x*w,y=m.y*h+Math.sin(t*.22+m.x*7)*14,r=m.r*Math.min(w,h);const g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(190,198,205,${m.a})`);g.addColorStop(1,"rgba(190,198,205,0)");c.fillStyle=g;c.beginPath();c.ellipse(x,y,r*2,r*.32,0,0,Math.PI*2);c.fill();}
+    // A small number of large foreground branches gives the eye-level depth seen in the reference.
+    const open=this.parting*ss(.3,1.55,t);for(let i=0;i<8;i++){const side=i%2?-1:1,baseX=side<0?w*.04:w*.96,baseY=h*(.58+(i/8)*.38),tx=baseX+side*(w*(.11+.055*i))*(1-open*.98),ty=baseY-h*(.24+.045*i);this.branch(baseX,baseY,tx,ty,rand(9,18),.62);}
+    if(this.bloodRate>0){for(let i=0;i<this.bloodRate*dt*12;i++)this.blood.push({x:w*.5+rand(-w*.08,w*.08),y:h*.55+rand(-h*.06,h*.06),vx:rand(-170,170),vy:rand(-50,170),life:0,max:rand(.7,1.6),r:rand(1,4),g:rand(300,580)});}
+    this.blood=this.blood.filter(b=>{b.life+=dt;if(b.life>=b.max)return false;b.vy+=b.g*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;const a=1-b.life/b.max;c.fillStyle=`rgba(130,7,10,${a*.72})`;c.beginPath();c.ellipse(b.x,b.y,b.r,b.r*(1+Math.abs(b.vy)/420),Math.atan2(b.vy,b.vx),0,Math.PI*2);c.fill();return true;});
     requestAnimationFrame(this.loop);
   }
 }
 
-
-/* ------------------------------------------------------------------ */
-/*  Intro: shared scaffolding                                          */
-/* ------------------------------------------------------------------ */
-function trackHTML(S, reverse) {
-  const list = reverse ? [...S.phrases].reverse() : [...S.phrases];
-  const reps = Math.max(4, Math.ceil(24 / list.length));
-  const half = Array.from({ length: reps }, () => list.map(p => `<span>${esc(p)}</span><i>${S.sep}</i>`).join("")).join("");
-  return half + half;
-}
-const bannerHTML = style => `
-  <div class="efx-banner">
-    <div class="efx-band efx-band-top"><div class="efx-track">${trackHTML(STYLES[style], false)}</div></div>
-    <div class="efx-title">${[...TITLE].map(ch => `<span class="ch">${esc(ch)}</span>`).join("")}</div>
-    <div class="efx-band efx-band-bot"><div class="efx-track">${trackHTML(STYLES[style], true)}</div></div>
-  </div>`;
-
-function makeCtx(el, style) {
-  const t0 = performance.now(), run = live.run;
-  return {
-    el, style, S: STYLES[style], alive: () => live.run === run,
-    until: async ms => { const w = ms - (performance.now() - t0); if (w > 0) await sleep(w); return live.run === run; }
-  };
-}
-
-async function finishIntro(ctx, onLeave) {
-  if (!await ctx.until(ctx.S.t.leave)) return;
-  ctx.el.classList.add("leave"); onLeave?.();
-  if (!await ctx.until(ctx.S.t.end)) return;
-  ctx.el.remove();
-  for (const fx of [...live.fx]) if (fx.owner === ctx.el) { fx.stop?.(); live.fx.delete(fx); }
-}
-const own = (fx, ctx) => { fx.owner = ctx.el; return track(fx); };
-
-async function playIntro({ style = "fire" } = {}) {
-  if (!STYLES[style]) style = "fire";
-  closeAll();
-  const el = document.createElement("div");
-  el.className = `efx-intro st-${style}`;
-  el.innerHTML = INTRO[style].html();
-  root().appendChild(el);
-  for (const tr of el.querySelectorAll(".efx-track")) tr.style.setProperty("--dur", `${Math.max(12, tr.scrollWidth / 2 / 160)}s`);
-  play(game.settings.get(ID, "sound"));
-  void el.offsetWidth; el.classList.add("on");
-  await INTRO[style].run(makeCtx(el, style));
-}
-
-const centerOf = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
-
-/* ------------------------------------------------------------------ */
-/*  Intro style: FIRE (Default)                                        */
-/* ------------------------------------------------------------------ */
-const INTRO = {};
-INTRO.fire = {
-  html: () => `
-    <div class="efx-dim"></div>
-    <div class="efx-shaker">
-      <canvas class="efx-fire"></canvas><canvas class="efx-sparks"></canvas>
-      ${bannerHTML("fire")}
-      <div class="efx-ring"></div>
-    </div>
-    <div class="efx-flash"></div>`,
-  async run(ctx) {
-    const { el } = ctx;
-    const fire = own(makeFire(el.querySelector(".efx-fire")), ctx); fire.start();
-    const sparks = own(new Sparks(el.querySelector(".efx-sparks")), ctx); sparks.rain = 1.6;
-    if (!await ctx.until(1300)) return;
-    const title = el.querySelector(".efx-title"), chars = [...title.querySelectorAll(".ch")];
-    for (const ch of chars) {                                   // typewriter
-      ch.classList.add("on");
-      const [x, y] = centerOf(ch);
-      sparks.burst(x, y, { n: 7, speed: 260, life: [.25, .6], size: [1.5, 3], gravity: 300 });
-      await sleep(70); if (!ctx.alive()) return;
-    }
-    if (!await ctx.until(1300 + chars.length * 70 + 90)) return;
-    title.classList.add("slam");                                // slam
-    if (!await ctx.until(1300 + chars.length * 70 + 320)) return;
-    el.classList.add("impact", "bands");
-    const [cx, cy] = centerOf(title);
-    sparks.burst(cx, cy, { n: 180, speed: 900, life: [.5, 1.4], size: [2, 6], gravity: 700 });
-    sparks.burst(cx, cy, { n: 60, speed: 500, life: [.4, 1], size: [3, 7], gravity: 200, colors: ["255,255,230", "255,200,90"] });
-    setTimeout(() => title.classList.add("glow"), 450);
-    await finishIntro(ctx, () => { fire.exit(); sparks.rain = 0; });
-  }
-};
-
-/* ------------------------------------------------------------------ */
-/*  Intro style: MAGICAL                                               */
-/* ------------------------------------------------------------------ */
-INTRO.magic = {
-  html: () => `
-    <div class="efx-dim"></div>
-    <canvas class="efx-magic"></canvas>
-    <div class="efx-shaker">${bannerHTML("magic")}<div class="efx-ring"></div><div class="efx-ring r2"></div></div>
-    <div class="efx-flash"></div>`,
-  async run(ctx) {
-    const { el } = ctx;
-    const fx = own(new MagicFX(el.querySelector(".efx-magic")), ctx); fx.start();
-    if (!await ctx.until(1700)) return;
-    el.classList.add("impact");
-    fx.burst(innerWidth / 2, innerHeight / 2, 220, 760);
-    if (!await ctx.until(2200)) return;
-    const title = el.querySelector(".efx-title"), chars = [...title.querySelectorAll(".ch")];
-    const mx = innerWidth / 2;
-    chars.forEach((ch, i) => { const [x] = centerOf(ch); ch.style.setProperty("--dx", `${(mx - x).toFixed(0)}px`); ch.style.setProperty("--rot", `${rand(-70,70).toFixed(0)}deg`); ch.style.animationDelay = `${i * 45}ms`; ch.classList.add("on"); });
-    fx.rects = [...el.querySelectorAll(".efx-band, .efx-title")].map(n => { const r=n.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height}; });
-    fx.sparkRate = 3.6;
-    if (!await ctx.until(3000)) return;
-    el.classList.add("bands");
-    if (!await ctx.until(3850)) return;
-    title.classList.add("glow");
-    await finishIntro(ctx, () => { fx.sparkRate=0; const [cx,cy]=centerOf(title); fx.burst(cx,cy,180,560); });
-  }
-};
-
-/* ------------------------------------------------------------------ */
-/*  Intro style: DARK FANTASY                                          */
-/* ------------------------------------------------------------------ */
 function foliageSVG(side) {
   const left = side === "left";
   const layers = [
@@ -769,31 +451,6 @@ const EYES_SVG = `
   <g class="eye"><path d="M228,70 Q288,20 348,70 Q288,114 228,70Z" fill="url(#efxEg)"/><ellipse cx="288" cy="70" rx="5" ry="27" fill="#070200"/><ellipse cx="280" cy="58" rx="4" ry="2.4" fill="#fff" opacity=".8"/></g>
 </svg>`;
 
-function clawShape(p, wmax) {
-  const [p0, p1, p2, p3] = p, N = 28, L = [], R = [];
-  const bez = t => { const u = 1 - t; return [0, 1].map(k => u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k]); };
-  for (let i = 0; i <= N; i++) {
-    const t = i / N, a = bez(Math.max(0, t - .01)), b = bez(Math.min(1, t + .01)), c = bez(t);
-    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
-    const w = wmax * Math.pow(Math.sin(Math.PI * t), 0.65) * (1 - .3 * t);
-    L.push(`${(c[0] + nx * w).toFixed(1)},${(c[1] + ny * w).toFixed(1)}`); R.push(`${(c[0] - nx * w).toFixed(1)},${(c[1] - ny * w).toFixed(1)}`);
-  }
-  return `M${L.join("L")}L${R.reverse().join("L")}Z`;
-}
-const CLAW_CURVES = [
-  { c: [[170, 30], [340, 170], [560, 330], [860, 590]], w: 17 },
-  { c: [[290, 10], [470, 150], [690, 300], [970, 520]], w: 13 },
-  { c: [[60, 110], [220, 240], [420, 390], [700, 600]], w: 10 }
-];
-const CLAWS_SVG = `
-<svg class="efx-claws" viewBox="0 0 1000 600" preserveAspectRatio="none">
-  <defs>
-    <linearGradient id="efxClawG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff6ea"/><stop offset=".55" stop-color="#e9ddcc"/><stop offset="1" stop-color="#a01010"/></linearGradient>
-    ${CLAW_CURVES.map((k, i) => `<mask id="efxCm${i}" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="600"><path class="mk c${i}" d="M${k.c[0]} C${k.c[1]} ${k.c[2]} ${k.c[3]}" fill="none" stroke="#fff" stroke-width="160"/></mask>`).join("")}
-  </defs>
-  ${CLAW_CURVES.map((k, i) => `<g mask="url(#efxCm${i})"><path d="${clawShape(k.c, k.w * 1.5)}" fill="#8a0000" opacity=".75" style="filter:blur(5px)"/><path d="${clawShape(k.c, k.w)}" fill="url(#efxClawG)"/></g>`).join("")}
-</svg>`;
-
 function startDrips(title, ctx) {
   const chars = [...title.querySelectorAll(".ch")];
   const make = () => {
@@ -815,37 +472,32 @@ INTRO.dark = {
     <div class="efx-moon"></div>
     <div class="efx-fog f1"></div><div class="efx-fog f2"></div>
     <canvas class="efx-dark-depth"></canvas>
-    <div class="efx-stage-dark">${EYES_SVG}</div>
+    <div class="efx-stage-dark">${WOLF}</div>
     <div class="efx-foliage left">${foliageSVG("left")}</div>
     <div class="efx-foliage right">${foliageSVG("right")}</div>
     <div class="efx-vignette"></div>
     <div class="efx-shaker">${bannerHTML("dark")}</div>
-    <canvas class="efx-sparks"></canvas>
-    <div class="efx-blackout"></div>${CLAWS_SVG}<div class="efx-redflash"></div>`,
+    <canvas class="efx-sparks"></canvas><div class="efx-blackout"></div><div class="efx-redflash"></div>`,
   async run(ctx) {
-    const { el }=ctx;
-    const depth=own(new DarkFX(el.querySelector(".efx-dark-depth")),ctx); depth.start();
+    const {el}=ctx;
+    const depth=own(new DarkFX(el.querySelector(".efx-dark-depth")),ctx);depth.start();
     const sparks=own(new Sparks(el.querySelector(".efx-sparks")),ctx);
-    if(!await ctx.until(380))return;
-    el.classList.add("parting"); depth.setParting(1);
-    if(!await ctx.until(1420))return;
+    if(!await ctx.until(420))return;
+    el.classList.add("parting");depth.setParting(1);
+    if(!await ctx.until(1250))return;
     el.classList.add("eyes");
-    if(!await ctx.until(2460))return;
-    el.classList.add("lunge"); depth.setLunge(1);
-    if(!await ctx.until(2820))return;
+    if(!await ctx.until(2200))return;
+    el.classList.add("lunge");depth.setLunge(1);
+    if(!await ctx.until(2550))return;
     el.classList.add("black");
-    if(!await ctx.until(3040))return;
-    el.classList.add("claws"); depth.bloodRate=8;
-    const W=innerWidth,H=innerHeight;
-    sparks.burst(W*.5,H*.5,{n:120,speed:980,life:[.5,1.4],size:[2,7],gravity:980,colors:["120,0,0","195,10,12","70,0,0"],add:false});
-    depth.bloodBurst(W*.5,H*.52,95);
-    if(!await ctx.until(3360))return;
-    el.classList.remove("black"); el.classList.add("bands","impact");
-    const title=el.querySelector(".efx-title"); title.classList.add("slam"); title.querySelectorAll(".ch").forEach(c=>c.classList.add("on"));
-    const [cx,cy]=centerOf(title);
-    sparks.burst(cx,cy,{n:170,speed:780,life:[.6,1.5],size:[2,7],gravity:1050,colors:["100,0,0","175,8,10","55,0,0"],add:false});
-    sparks.burst(cx,cy,{n:55,speed:360,life:[.5,1.1],size:[1.5,3],gravity:40,colors:["220,225,235"]});
-    depth.bloodRate=14; startDrips(title,ctx);
+    if(!await ctx.until(2860))return;
+    const W=innerWidth,H=innerHeight;depth.bloodBurst(W*.5,H*.55,70);
+    sparks.burst(W*.5,H*.55,{n:85,speed:650,life:[.5,1.25],size:[1.5,4],gravity:720,colors:["95,0,0","170,8,10","55,0,0"],add:false});
+    if(!await ctx.until(3220))return;
+    el.classList.remove("black");el.classList.add("bands","impact");
+    const title=el.querySelector(".efx-title");title.classList.add("slam");title.querySelectorAll(".ch").forEach(c=>c.classList.add("on"));
+    const [cx,cy]=centerOf(title);sparks.burst(cx,cy,{n:105,speed:520,life:[.45,1.25],size:[1.5,4.5],gravity:820,colors:["120,0,0","180,12,14","65,0,0"],add:false});
+    startDrips(title,ctx);depth.bloodRate=5;
     await finishIntro(ctx,()=>{depth.bloodRate=0;});
   }
 };

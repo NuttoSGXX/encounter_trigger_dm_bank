@@ -1,9 +1,18 @@
 # Changelog
 
-## v0.5.1 — Release Packaging Refresh
+## 0.5.2 — Cinematic Visual Cleanup
 
-- Bumped module version to `0.5.1`.
-- Release manifest now points to the `v0.5.1` module asset.
+- Reworked Magical FX into a cleaner semi-real arcane convergence with larger dimensional orbs, restrained ribbons, central core and controlled sparkle.
+- Reworked Dark Fantasy FX into a cleaner eye-level moonlit reveal with parted foliage, beast silhouette, lunge and restrained blood particles/drips.
+- Removed the old claw-scratch overlay that made Dark Fantasy visually noisy.
+- Removed the visible “DRAG TO MOVE” label.
+- Enabled Foundry V14 native ApplicationV2 frame positioning for the launcher. The actual window header is the drag surface.
+- Preserved GM-only flow, scene/party/hostile selection, socket sync, 3D d20 initiative, initiative announcement and automatic combat start.
+
+## v0.5.2 — Release Packaging Refresh
+
+- Bumped module version to `0.5.2`.
+- Release manifest now points to the `v0.5.2` module asset.
 - GitHub Actions now publishes both `module.json` and `module.zip` as Release assets.
 - Preserves the semi-real Magical orb/convergence FX, Dark Fantasy foliage/lunge/blood FX, and draggable compact launcher from v0.5.0.
 

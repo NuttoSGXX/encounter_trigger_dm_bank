@@ -534,3 +534,61 @@
 .efx-compact-head:hover::after { opacity:1; color:#f0d28a; border-color:rgba(201,162,75,.45); }
 .efx-launcher.application { user-select:none; }
 .efx-launcher .efx-compact-body input, .efx-launcher .efx-compact-body select, .efx-launcher .efx-compact-body label, .efx-launcher .efx-compact-foot button { user-select:auto; }
+
+
+/* =====================================================================
+   v0.5.2 CINEMATIC CLEANUP
+   - Foundry V14 native frame is the only drag affordance.
+   - Magical: fewer, larger semi-real orbs + elegant convergence ribbons.
+   - Dark Fantasy: restrained foliage parting + beast silhouette + clean blood.
+   ===================================================================== */
+.efx-launcher .window-header { cursor: grab; }
+.efx-launcher .window-header:active { cursor: grabbing; }
+.efx-compact-head { cursor: default !important; touch-action: auto; }
+.efx-compact-head::after { display:none !important; }
+
+/* Cleaner launcher proportions closer to the concept board. */
+.efx-launcher.application { width: 440px !important; max-width: 92vw; }
+.efx-launcher .window-content { max-height: none; overflow: hidden; }
+.efx-ui-compact { padding-bottom: 8px; }
+.efx-ui-compact .bg-sigil-wrap { opacity: .42; }
+.efx-ui-compact .bg-glow { opacity: .78; }
+.efx-ui-compact .efx-compact-head { padding-top: 2px; }
+
+/* Magical: the title floats over the field; the old rectangular magic bands are suppressed. */
+.st-magic .efx-band { background: transparent !important; border: 0 !important; box-shadow: none !important; height: 0; padding: 0; overflow: visible; opacity: 0; pointer-events:none; }
+.st-magic .efx-band .efx-track { display:none; }
+.st-magic .efx-banner { top: 56%; }
+.st-magic .efx-title { font-size: clamp(3.8rem, 10vw, 9rem); letter-spacing: .12em; }
+.st-magic .efx-title .ch { color:#f8f6ff; text-shadow:0 1px 0 rgba(0,0,0,.5),0 0 5px #fff,0 0 18px rgba(177,132,255,.95),0 0 42px rgba(76,180,255,.65),0 0 78px rgba(235,85,205,.45); }
+.st-magic .efx-title.glow .ch { animation: efx-magic-title-clean 3.8s ease-in-out infinite; }
+@keyframes efx-magic-title-clean { 0%,100%{filter:brightness(1);text-shadow:0 1px 0 rgba(0,0,0,.5),0 0 5px #fff,0 0 18px rgba(177,132,255,.95),0 0 42px rgba(76,180,255,.65)} 50%{filter:brightness(1.12);text-shadow:0 1px 0 rgba(0,0,0,.5),0 0 7px #fff,0 0 22px rgba(95,205,255,1),0 0 48px rgba(214,94,255,.7)} }
+.st-magic .efx-ring { display:none; }
+
+/* Dark Fantasy: remove graphic claw scratches; make the reveal read as a single physical scene. */
+.st-dark .efx-band { background:transparent !important; border:0 !important; box-shadow:none !important; height:0; padding:0; overflow:visible; opacity:0; }
+.st-dark .efx-band .efx-track { display:none; }
+.st-dark .efx-banner { top:58%; }
+.st-dark .efx-title { font-size:clamp(3.7rem,10vw,9rem); letter-spacing:.08em; }
+.st-dark .efx-title .ch { color:#e8e3db; text-shadow:0 2px 1px #000,0 0 7px rgba(0,0,0,.95),0 0 22px rgba(120,0,0,.75),0 0 50px rgba(70,0,0,.45); }
+.st-dark .efx-title.slam .ch { animation:efx-blood-title-clean 2.8s ease-in-out infinite alternate; }
+@keyframes efx-blood-title-clean { from{filter:brightness(.92)} to{filter:brightness(1.08)} }
+.efx-beast { position:absolute; width:min(62vw,900px); height:auto; opacity:0; transform:translateY(14%) scale(.66); filter:drop-shadow(0 18px 24px rgba(0,0,0,.75)); transition:opacity .65s ease; }
+.st-dark.eyes .efx-beast { opacity:.94; animation:efx-beast-approach 1.25s cubic-bezier(.25,.7,.2,1) forwards; }
+.st-dark.lunge .efx-beast { animation:efx-beast-lunge .34s cubic-bezier(.7,0,1,.35) forwards; }
+@keyframes efx-beast-approach { from{transform:translateY(14%) scale(.66);filter:blur(5px) drop-shadow(0 18px 24px rgba(0,0,0,.75))} to{transform:translateY(3%) scale(.82);filter:blur(.4px) drop-shadow(0 18px 24px rgba(0,0,0,.75))} }
+@keyframes efx-beast-lunge { from{transform:translateY(3%) scale(.82)} to{transform:translateY(7%) scale(2.15)} }
+.efx-beast .beast-aura { opacity:.5; }
+.efx-dark-depth { z-index:2; mix-blend-mode:screen; opacity:.85; }
+.st-dark .efx-foliage { width:48%; }
+.st-dark .efx-foliage.left { left:-5%; }
+.st-dark .efx-foliage.right { right:-5%; }
+.st-dark.parting .efx-foliage.left { animation:efx-partL-clean 1.25s cubic-bezier(.55,0,.15,1) forwards; }
+.st-dark.parting .efx-foliage.right { animation:efx-partR-clean 1.25s cubic-bezier(.55,0,.15,1) forwards; }
+@keyframes efx-partL-clean { 0%{transform:translateX(0) rotate(0)} 100%{transform:translateX(-84%) rotate(-4deg)} }
+@keyframes efx-partR-clean { 0%{transform:translateX(0) rotate(0)} 100%{transform:translateX(84%) rotate(4deg)} }
+.st-dark .efx-moon { left:72%; top:7%; width:22vmin; height:22vmin; }
+.st-dark .efx-vignette { background:radial-gradient(ellipse at center,transparent 28%,rgba(0,0,0,.84) 100%); }
+.st-dark .efx-claws { display:none !important; }
+.efx-drip { background:linear-gradient(90deg,#280000,#8e070b 42%,#c91b1f 54%,#410000); box-shadow:0 1px 5px rgba(0,0,0,.75),0 0 5px rgba(120,0,0,.65); }
+.efx-drip::after { background:radial-gradient(circle at 32% 28%,#e65a5a 0,#a10d12 45%,#350000 100%); }
