@@ -7,7 +7,6 @@
  */
 const ID = "encounter-fx";
 const SOCKET = `module.${ID}`;
-const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 /* ------------------------------------------------------------------ */
 /*  Back-end config (edit freely)                                      */
@@ -34,7 +33,7 @@ const STYLES = {
     label: "Dark Fantasy", tag: "Nightmare", desc: "Part the brush. Two eyes in the dark. Then it lunges.",
     sep: "†",
     phrases: ["Something Watches", "Do Not Run", "Blood Scents The Wind", "You Are Not Alone", "It Hunts By Moonlight", "No One Hears You Scream", "Steel Your Nerves", "The Hunt Begins"],
-    t: { switch: 3000, leave: 6300, end: 7700, dice: 6700 },
+    t: { switch: 3800, leave: 7000, end: 8300, dice: 7300 },
     die: { h: 215, s: 8 }, colors: ["225,230,240", "150,160,175"]
   }
 };
@@ -64,7 +63,7 @@ async function mediaFor(style) {
    Drop assets/plates/magical.(webp|jpg|png) and/or dark-fantasy.(webp|jpg|png).
    Priority per style: video plate > still plate > procedural FX. */
 const PLATES = {
-  magic: { name: "magical",      t: { switch: 2700, title: 2900, leave: 6400, end: 7600, dice: 6700 } },
+  magic: { name: "magical",      t: { switch: 2150, title: 2350, leave: 6000, end: 7200, dice: 6300 } },
   dark:  { name: "dark-fantasy", focus: [0.6, 0.46], t: { switch: 3900, title: 4100, leave: 7200, end: 8400, dice: 7500 } }
 };
 const plateCache = new Map();
@@ -106,6 +105,7 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: "", filePicker: "audio"
   });
   game.settings.register(ID, "style", { scope: "client", config: false, type: String, default: "fire" });
+  game.settings.register(ID, "panel", { scope: "client", config: false, type: Object, default: {} });
 });
 
 Hooks.once("ready", () => {
@@ -119,7 +119,7 @@ Hooks.once("ready", () => {
 
 function openLauncher() {
   if (!game.user.isGM) return ui.notifications.warn("Encounter FX: only the Game Master can start an encounter.");
-  new EncounterLauncher().render({ force: true });
+  EncounterPanel.toggle();
 }
 
 Hooks.on("getSceneControlButtons", controls => {
@@ -136,79 +136,110 @@ Hooks.on("getSceneControlButtons", controls => {
 /* ------------------------------------------------------------------ */
 /*  Launcher (GM only)                                                 */
 /* ------------------------------------------------------------------ */
-class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
-  static DEFAULT_OPTIONS = {
-    id: "efx-launcher", tag: "form", classes: ["efx-launcher"],
-    position: { width: 440, height: "auto" },
-    window: { title: "Encounter FX", icon: "fa-solid fa-fire-flame-curved", resizable: false, positioned: true },
-    actions: { preview: EncounterLauncher.#onPreview },
-    form: { handler: EncounterLauncher.#onSubmit, closeOnSubmit: true }
-  };
-  static PARTS = { form: { template: `modules/${ID}/templates/launcher.hbs` } };
+const PANEL_TEMPLATE = `modules/${ID}/templates/launcher.hbs`;
 
-  async _prepareContext() {
-    const last = game.settings.get(ID, "style");
-    const scenes = game.scenes.contents
-      .map(s => ({ id: s.id, name: s.name, key: s.name.toLowerCase(), thumb: s.thumb, active: s.active }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const actors = game.actors.contents
-      .filter(a => a.type === "character" && a.hasPlayerOwner)
-      .map(a => ({
-        id: a.id, name: a.name, img: a.img,
-        checked: game.users.some(u => u.active && !u.isGM && a.testUserPermission(u, "OWNER"))
-      }));
-    const styles = Object.entries(STYLES).map(([id, s]) => ({ id, label: s.label, tag: s.tag, desc: s.desc, checked: id === (STYLES[last] ? last : "fire") }));
-    return { scenes, actors, styles, hasScenes: scenes.length > 0 };
-  }
+async function launcherContext() {
+  const last = game.settings.get(ID, "style");
+  const scenes = game.scenes.contents
+    .map(s => ({ id: s.id, name: s.name, key: s.name.toLowerCase(), thumb: s.thumb, active: s.active }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const actors = game.actors.contents
+    .filter(a => a.type === "character" && a.hasPlayerOwner)
+    .map(a => ({
+      id: a.id, name: a.name, img: a.img,
+      checked: game.users.some(u => u.active && !u.isGM && a.testUserPermission(u, "OWNER"))
+    }));
+  const styles = Object.entries(STYLES).map(([id, s]) => ({ id, label: s.label, tag: s.tag, desc: s.desc, checked: id === (STYLES[last] ? last : "fire") }));
+  return { scenes, actors, styles, hasScenes: scenes.length > 0 };
+}
 
-  _onRender(context, options) {
-    super._onRender?.(context, options);
-    decorateLauncher(this.element, this);
-  }
-
-  static #onPreview(event, target) {
-    const style = this.element.querySelector('input[name="style"]:checked')?.value ?? "fire";
-    assetFor(style).then(a => onMessage({ action: "intro", style, asset: a?.type ?? null, src: a?.src ?? null }));   // local only: no scene change, no combat
-  }
-
-  static async #onSubmit(event, form, formData) {
+/** GM launcher: a floating panel (not a Foundry window). Grab the header and it moves immediately; position is remembered per client. */
+class EncounterPanel {
+  static #inst = null;
+  static toggle() {
     if (!game.user.isGM) return;
-    const d = formData.object;
-    const actorIds = [...form.querySelectorAll('input[name="actor"]:checked')].map(i => i.value);
-    const style = STYLES[d.style] ? d.style : "fire";
+    if (EncounterPanel.#inst) return EncounterPanel.#inst.close();
+    EncounterPanel.#inst = new EncounterPanel(); EncounterPanel.#inst.open();
+  }
+
+  async open() {
+    const saved = game.settings.get(ID, "panel") ?? {};
+    this.x = saved.x ?? Math.max(12, innerWidth - 480); this.y = saved.y ?? 90;
+    const el = this.el = document.createElement("div");
+    el.id = "efx-panel"; el.className = "efx-launcher efx-floating";
+    el.innerHTML = `<form class="efx-panel-form"></form>`;
+    document.body.appendChild(el);
+    this.form = el.querySelector("form");
+    await this.renderBody();
+    this.clampPos(); this.place(); this.bind();
+    this._onResize = () => { this.clampPos(); this.place(); };
+    addEventListener("resize", this._onResize);
+  }
+
+  async renderBody() {
+    const render = foundry.applications?.handlebars?.renderTemplate ?? globalThis.renderTemplate;
+    this.form.innerHTML = await render(PANEL_TEMPLATE, await launcherContext());
+    decorateLauncher(this.el);
+  }
+
+  place() { this.el.style.left = `${this.x}px`; this.el.style.top = `${this.y}px`; }
+  clampPos() {
+    const w = this.el.offsetWidth || 440;
+    this.x = clamp(this.x, 0, Math.max(0, innerWidth - Math.min(w, 120)));
+    this.y = clamp(this.y, 0, Math.max(0, innerHeight - 48));
+  }
+  save() { game.settings.set(ID, "panel", { x: Math.round(this.x), y: Math.round(this.y) }); }
+
+  bind() {
+    const el = this.el;
+    // Grab the header = drag. Delegated, so it keeps working after any re-render.
+    el.addEventListener("pointerdown", e => {
+      const head = e.target.closest(".efx-compact-head");
+      if (!head || e.button !== 0 || e.target.closest("button")) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+      head.setPointerCapture(e.pointerId); el.classList.add("efx-dragging");
+      const move = ev => { this.x = clamp(ev.clientX - dx, 0, innerWidth - 80); this.y = clamp(ev.clientY - dy, 0, innerHeight - 40); this.place(); };
+      const up = () => {
+        head.removeEventListener("pointermove", move); head.removeEventListener("pointerup", up); head.removeEventListener("pointercancel", up);
+        el.classList.remove("efx-dragging"); this.save();
+      };
+      head.addEventListener("pointermove", move); head.addEventListener("pointerup", up); head.addEventListener("pointercancel", up);
+    });
+    el.addEventListener("click", e => {
+      const act = e.target.closest("[data-act]")?.dataset.act;
+      if (act === "close") this.close(); else if (act === "preview") this.preview();
+    });
+    el.addEventListener("keydown", e => { if (e.key === "Escape") this.close(); });
+    this.form.addEventListener("submit", e => { e.preventDefault(); this.start(); });
+  }
+
+  preview() {   // local only: no scene change, no combat
+    const style = this.form.querySelector('input[name="style"]:checked')?.value ?? "fire";
+    assetFor(style).then(a => onMessage({ action: "intro", style, asset: a?.type ?? null, src: a?.src ?? null }));
+  }
+
+  async start() {
+    if (!game.user.isGM) return;
+    const fd = new FormData(this.form);
+    const style = STYLES[fd.get("style")] ? fd.get("style") : "fire";
+    const sceneId = fd.get("sceneId"), actorIds = fd.getAll("actor"), hostile = fd.has("hostile");
     await game.settings.set(ID, "style", style);
-    launch({ sceneId: d.sceneId, actorIds, hostile: !!d.hostile, style });
+    this.close();
+    launch({ sceneId, actorIds, hostile, style });
+  }
+
+  close() {
+    removeEventListener("resize", this._onResize);
+    this.el?.remove();
+    EncounterPanel.#inst = null;
   }
 }
 
-
-/** Drag the launcher by its header or any non-interactive area. Delegated once on the window element,
- *  so it survives re-renders; uses window-level listeners; falls back to direct left/top if setPosition fails. */
-function enableDrag(el, app) {
-  if (el._efxDrag) return; el._efxDrag = true;
-  el.addEventListener("pointerdown", ev => {
-    if (ev.button !== 0) return;
-    if (ev.target.closest("button, input, select, textarea, label, a, summary, option, [data-action], .window-controls")) return;
-    ev.preventDefault(); ev.stopPropagation();                    // we own dragging (the native handler is bypassed)
-    app?.bringToFront?.();
-    const r = el.getBoundingClientRect(), start = { x: ev.clientX, y: ev.clientY, left: r.left, top: r.top };
-    const move = e => {
-      const left = clamp(start.left + e.clientX - start.x, -r.width + 80, innerWidth - 80), top = clamp(start.top + e.clientY - start.y, 0, innerHeight - 40);
-      try { app?.setPosition?.({ left, top }); } catch (err) { /* fall through */ }
-      const now = el.getBoundingClientRect();
-      if (Math.abs(now.left - left) > 2 || Math.abs(now.top - top) > 2) { el.style.left = `${left}px`; el.style.top = `${top}px`; }
-    };
-    const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); el.classList.remove("efx-dragging"); };
-    el.classList.add("efx-dragging");
-    addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
-  }, { capture: true });
-}
-
-/** Visual decoration + drag. */
-function decorateLauncher(el, app) {
+/** Visual decoration only (motes, parallax). */
+function decorateLauncher(el) {
   if (!el || el._efxDecorated) return;
   el._efxDecorated = true;
-  enableDrag(el, app);
   const motes = el.querySelector(".bg-motes");
   if (motes) {
     for (let i = 0; i < 22; i++) {
@@ -540,60 +571,71 @@ const magicHue = () => MAGIC_HUES[(Math.random() * MAGIC_HUES.length) | 0] + ran
 
 class MagicFX {
   constructor(canvas) {
-    this.c=canvas; this.ctx=canvas.getContext("2d");
-    this.resize=()=>{canvas.width=innerWidth;canvas.height=innerHeight;this.w=canvas.width;this.h=canvas.height;};
-    this.resize(); addEventListener("resize",this.resize);
-    this.on=false; this.t0=0; this.last=0; this.orbs=[]; this.ribbons=[]; this.sparks=[]; this.burstAt=1.72; this.loop=this.loop.bind(this);
-    const count=9;
-    for(let i=0;i<count;i++){
-      const a=(i/count)*Math.PI*2+rand(-.16,.16);
-      this.orbs.push({a, radius:rand(.28,.46), speed:rand(.12,.22)*(Math.random()<.5?-1:1), hue:MAGIC_HUES[i%MAGIC_HUES.length]+rand(-8,8), size:rand(18,31), phase:rand(0,6.28), depth:rand(.75,1.25)});
+    this.c = canvas; this.ctx = canvas.getContext("2d");
+    this.resize = () => { canvas.width = innerWidth; canvas.height = innerHeight; };
+    this.resize(); addEventListener("resize", this.resize);
+    this.streams = []; this.stars = []; this.rects = []; this.sparkRate = 0; this.loop = this.loop.bind(this);
+  }
+  start() { this.on = true; this.t0 = this.last = performance.now(); requestAnimationFrame(this.loop); }
+  stop() { this.on = false; removeEventListener("resize", this.resize); }
+  burst(x, y, n, speed = 520) {
+    for (let i = 0; i < n && this.stars.length < 900; i++) {
+      const a = rand(0, 6.283), s = speed * rand(0.2, 1);
+      this.stars.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, drag: 0.955, life: 0, max: rand(0.7, 1.7), size: rand(4, 13), hue: magicHue(), rot: rand(0, 1.57), spin: rand(-2, 2) });
     }
-    for(let i=0;i<12;i++) this.ribbons.push({side:i%4,offset:rand(-.42,.42),phase:rand(0,6.28),hue:MAGIC_HUES[i%MAGIC_HUES.length],width:rand(1.5,3.6),delay:rand(0,.7)});
   }
-  start(){this.on=true;this.t0=this.last=performance.now();requestAnimationFrame(this.loop);}
-  stop(){this.on=false;removeEventListener("resize",this.resize);}
-  burst(x,y,n=150,speed=650){for(let i=0;i<n&&this.sparks.length<1200;i++){const a=rand(0,Math.PI*2),sp=speed*rand(.2,1),h=magicHue();this.sparks.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0,max:rand(.45,1.2),size:rand(1.5,4.5),h:h});}}
-  orb(x,y,size,hue,alpha=1){const c=this.ctx;c.save();c.globalCompositeOperation="lighter";
-    const glow=c.createRadialGradient(x,y,0,x,y,size*5);glow.addColorStop(0,`hsla(${hue},100%,98%,${.85*alpha})`);glow.addColorStop(.18,`hsla(${hue},100%,78%,${.58*alpha})`);glow.addColorStop(1,`hsla(${hue},100%,45%,0)`);c.fillStyle=glow;c.beginPath();c.arc(x,y,size*5,0,Math.PI*2);c.fill();
-    const ball=c.createRadialGradient(x-size*.35,y-size*.4,size*.05,x,y,size);ball.addColorStop(0,`rgba(255,255,255,${alpha})`);ball.addColorStop(.18,`hsla(${hue},100%,92%,${alpha})`);ball.addColorStop(.55,`hsla(${hue},90%,58%,${.95*alpha})`);ball.addColorStop(.82,`hsla(${hue},90%,34%,${.85*alpha})`);ball.addColorStop(1,`hsla(${hue},100%,20%,0)`);c.fillStyle=ball;c.beginPath();c.arc(x,y,size,0,Math.PI*2);c.fill();
-    c.strokeStyle=`hsla(${hue},100%,92%,${.6*alpha})`;c.lineWidth=1.2;c.beginPath();c.arc(x,y,size*1.28,0,Math.PI*2);c.stroke();
-    c.strokeStyle=`hsla(${(hue+45)%360},100%,88%,${.38*alpha})`;c.lineWidth=.8;c.beginPath();c.arc(x,y,size*1.7,-.8,1.9);c.stroke();c.restore();
+  star(x, y, s, rot, hue) {
+    const ctx = this.ctx;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, s * 1.2);
+    g.addColorStop(0, `hsla(${hue},100%,80%,.5)`); g.addColorStop(1, `hsla(${hue},100%,70%,0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, s * 1.2, 0, 6.283); ctx.fill();
+    ctx.fillStyle = `hsla(${hue},100%,88%,.95)`; ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = rot + i * Math.PI / 4, r = i % 2 ? s * 0.2 : s;
+      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
   }
-  ribbon(x1,y1,x2,y2,hue,a,lw){const c=this.ctx,dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;const bend=Math.sin((performance.now()/900)+x1*.003)*len*.08;c.save();c.globalCompositeOperation="lighter";c.lineCap="round";const g=c.createLinearGradient(x1,y1,x2,y2);g.addColorStop(0,`hsla(${hue},100%,70%,0)`);g.addColorStop(.55,`hsla(${hue},100%,78%,${.48*a})`);g.addColorStop(1,`hsla(${hue},100%,98%,${a})`);c.strokeStyle=g;c.lineWidth=lw;c.shadowBlur=10;c.shadowColor=`hsla(${hue},100%,70%,${.45*a})`;c.beginPath();c.moveTo(x1,y1);c.quadraticCurveTo((x1+x2)/2+nx*bend,(y1+y2)/2+ny*bend,x2,y2);c.stroke();c.restore();}
-  star(x,y,s,h,a){const c=this.ctx;c.save();c.globalCompositeOperation="lighter";c.fillStyle=`hsla(${h},100%,94%,${a})`;c.shadowBlur=12;c.shadowColor=`hsla(${h},100%,70%,${a})`;c.beginPath();for(let i=0;i<8;i++){const ang=i*Math.PI/4,r=i%2?s*.16:s;const px=x+Math.cos(ang)*r,py=y+Math.sin(ang)*r;i?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.fill();c.restore();}
-  loop(now){if(!this.on)return;const dt=Math.min(.04,(now-this.last)/1000);this.last=now;const t=(now-this.t0)/1000,{width:w,height:h}=this.c,c=this.ctx,cx=w*.5,cy=h*.5;
-    c.clearRect(0,0,w,h);
-    const progress=ss(.15,2.4,t), coreScale=1+.18*Math.sin(t*4);
-    // A restrained field: nine large luminous orbs orbit, then collapse into the center.
-    for(const o of this.orbs){o.a+=o.speed*dt;const rr=Math.min(w,h)*o.radius*(1-.58*progress);const x=cx+Math.cos(o.a)*rr,y=cy+Math.sin(o.a)*rr*.68;const px=cx+Math.cos(o.a-.045)*rr,py=cy+Math.sin(o.a-.045)*rr*.68;this.ribbon(px,py,x,y,o.hue,.72,o.depth);this.orb(x,y,o.size*(1-.35*progress),o.hue,.92);if(Math.random()<.045)this.star(x+rand(-8,8),y+rand(-8,8),rand(3,7),o.hue,.8);}
-    // Sixteen elegant filaments, not a noisy particle storm.
-    if(t<2.25){for(const r of this.ribbons){if(t<r.delay)continue;const u=ss(r.delay,2.35,t),edge=Math.hypot(w,h)*.62*(1-u);let x=cx,y=cy;if(r.side===0){x=0+r.offset*w*.35;y=cy+r.offset*h+Math.sin(t+r.phase)*h*.04;}else if(r.side===1){x=w+r.offset*w*.35;y=cy+r.offset*h+Math.sin(t+r.phase)*h*.04;}else if(r.side===2){x=cx+r.offset*w;y=0+r.offset*h*.28;}else{x=cx+r.offset*w;y=h+r.offset*h*.28;}const ang=Math.atan2(cy-y,cx-x);const sx=x,sy=y,ex=cx+Math.cos(ang+Math.sin(t+r.phase)*.18)*edge,ey=cy+Math.sin(ang+Math.sin(t+r.phase)*.18)*edge;this.ribbon(sx,sy,ex,ey,r.hue,.7,r.width*(1+.5*(1-u)));}}
-    // Central arcane core: layered spheres instead of flat rings.
-    this.orb(cx,cy,24*coreScale,(t*35)%360,1);c.save();c.globalCompositeOperation="lighter";for(let i=0;i<3;i++){const r=58+i*28+Math.sin(t*1.8+i)*3;c.strokeStyle=`hsla(${(t*35+i*80)%360},100%,82%,${.18-i*.035})`;c.lineWidth=1;c.setLineDash([4+i*2,11+i*4]);c.beginPath();c.arc(cx,cy,r,t*(.25+i*.12),t*(.25+i*.12)+Math.PI*1.7);c.stroke();}c.restore();
-    if(t>1.65){const k=clamp((t-1.65)/.65,0,1);for(let i=0;i<Math.floor(28*k);i++)this.star(cx+rand(-180,180)*k,cy+rand(-110,110)*k,rand(2,5),magicHue(),.9*(1-k*.35));}
-    this.sparks=this.sparks.filter(p=>{p.life+=dt;if(p.life>=p.max)return false;p.vx*=.985;p.vy*=.985;p.x+=p.vx*dt;p.y+=p.vy*dt;this.star(p.x,p.y,p.size*(1-p.life/p.max),p.h,1-p.life/p.max);return true;});
-    requestAnimationFrame(this.loop);
-  }
-}
+  loop(now) {
+    if (!this.on) return;
+    const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
+    const el = (now - this.t0) / 1000, { width: w, height: h } = this.c, ctx = this.ctx, cx = w / 2, cy = h / 2;
+    ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "rgba(0,0,0,.17)"; ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
 
-/* ------------------------------------------------------------------ */
-/*  Dark Fantasy depth FX: semi-real foliage, moon haze and blood     */
-/* ------------------------------------------------------------------ */
-class DarkFX {
-  constructor(canvas){this.c=canvas;this.ctx=canvas.getContext("2d");this.resize=()=>{canvas.width=innerWidth;canvas.height=innerHeight;};this.resize();addEventListener("resize",this.resize);this.on=false;this.t0=0;this.last=0;this.parting=0;this.lunge=0;this.bloodRate=0;this.blood=[];this.mist=[];this.loop=this.loop.bind(this);for(let i=0;i<14;i++)this.mist.push({x:rand(0,1),y:rand(.5,1),r:rand(.08,.2),s:rand(.006,.018),a:rand(.04,.11)});}
-  start(){this.on=true;this.t0=this.last=performance.now();requestAnimationFrame(this.loop);}
-  stop(){this.on=false;removeEventListener("resize",this.resize);}
-  setParting(v=1){this.parting=v;} setLunge(v=1){this.lunge=v;}
-  bloodBurst(x,y,n=55){for(let i=0;i<n&&this.blood.length<650;i++){const a=rand(-Math.PI*.92,-Math.PI*.08),sp=rand(130,520);this.blood.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0,max:rand(.55,1.45),r:rand(1.5,4.5),g:rand(320,620)});}}
-  branch(x,y,tx,ty,w,a){const c=this.ctx,dx=tx-x,dy=ty-y,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;c.save();c.globalAlpha=a;c.lineCap="round";c.strokeStyle="#080b0d";c.lineWidth=w;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+dx*.45+nx*len*.1,y+dy*.45+ny*len*.1,tx,ty);c.stroke();c.strokeStyle="rgba(125,138,142,.12)";c.lineWidth=Math.max(1,w*.11);c.stroke();c.restore();}
-  loop(now){if(!this.on)return;const dt=Math.min(.04,(now-this.last)/1000);this.last=now;const t=(now-this.t0)/1000,{width:w,height:h}=this.c,c=this.ctx;c.clearRect(0,0,w,h);
-    const moonX=w*.78,moonY=h*.16;const mg=c.createRadialGradient(moonX,moonY,0,moonX,moonY,Math.min(w,h)*.4);mg.addColorStop(0,"rgba(225,232,240,.14)");mg.addColorStop(.25,"rgba(190,205,220,.07)");mg.addColorStop(1,"rgba(120,140,160,0)");c.fillStyle=mg;c.fillRect(0,0,w,h);
-    for(const m of this.mist){m.x+=m.s*dt;if(m.x>1.1)m.x=-.1;const x=m.x*w,y=m.y*h+Math.sin(t*.22+m.x*7)*14,r=m.r*Math.min(w,h);const g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(190,198,205,${m.a})`);g.addColorStop(1,"rgba(190,198,205,0)");c.fillStyle=g;c.beginPath();c.ellipse(x,y,r*2,r*.32,0,0,Math.PI*2);c.fill();}
-    // A small number of large foreground branches gives the eye-level depth seen in the reference.
-    const open=this.parting*ss(.3,1.55,t);for(let i=0;i<8;i++){const side=i%2?-1:1,baseX=side<0?w*.04:w*.96,baseY=h*(.58+(i/8)*.38),tx=baseX+side*(w*(.11+.055*i))*(1-open*.98),ty=baseY-h*(.24+.045*i);this.branch(baseX,baseY,tx,ty,rand(9,18),.62);}
-    if(this.bloodRate>0){for(let i=0;i<this.bloodRate*dt*12;i++)this.blood.push({x:w*.5+rand(-w*.08,w*.08),y:h*.55+rand(-h*.06,h*.06),vx:rand(-170,170),vy:rand(-50,170),life:0,max:rand(.7,1.6),r:rand(1,4),g:rand(300,580)});}
-    this.blood=this.blood.filter(b=>{b.life+=dt;if(b.life>=b.max)return false;b.vy+=b.g*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;const a=1-b.life/b.max;c.fillStyle=`rgba(130,7,10,${a*.72})`;c.beginPath();c.ellipse(b.x,b.y,b.r,b.r*(1+Math.abs(b.vy)/420),Math.atan2(b.vy,b.vx),0,Math.PI*2);c.fill();return true;});
+    if (el < 1.8) {
+      for (let i = 0, n = Math.round(10 * dt * 60); i < n; i++)
+        this.streams.push({ a: rand(0, 6.283), R: Math.hypot(w, h) * rand(0.5, 0.7), turns: rand(0.6, 1.4), t: 0,
+          dur: Math.max(0.3, Math.min(rand(0.8, 1.4), 2.0 - el)), hue: magicHue(), lw: rand(1.5, 4.5), px: null, py: null });
+    }
+    this.streams = this.streams.filter(s => {
+      s.t += dt; const u = Math.min(1, s.t / s.dur);
+      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      const r = s.R * (1 - e), ang = s.a + s.turns * 6.283 * e;
+      const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r * 0.78;
+      if (s.px !== null) {
+        ctx.strokeStyle = `hsla(${s.hue},100%,${62 + 30 * e}%,${0.5 + 0.45 * e})`; ctx.lineWidth = s.lw * (1.2 - 0.5 * e);
+        ctx.beginPath(); ctx.moveTo(s.px, s.py); ctx.lineTo(x, y); ctx.stroke();
+      }
+      s.px = x; s.py = y;
+      if (u >= 1) { if (Math.random() < 0.12) this.stars.push({ x, y, vx: rand(-40, 40), vy: rand(-40, 40), drag: 0.97, life: 0, max: rand(0.5, 1), size: rand(5, 10), hue: s.hue, rot: 0, spin: 1 }); return false; }
+      return true;
+    });
+
+    if (this.sparkRate > 0 && this.rects.length) {
+      for (let k = this.sparkRate * dt * 60; k > 0; k--) {
+        if (Math.random() > Math.min(1, k)) continue;
+        const r = this.rects[(Math.random() * this.rects.length) | 0];
+        this.stars.push({ x: rand(r.x, r.x + r.w), y: rand(r.y, r.y + r.h), vx: 0, vy: rand(-12, 12), drag: 1, life: 0, max: rand(0.5, 1.3), size: rand(5, 14), hue: magicHue(), rot: 0, spin: rand(-1, 1) });
+      }
+    }
+    this.stars = this.stars.filter(s => {
+      s.life += dt; if (s.life >= s.max) return false;
+      s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= s.drag; s.vy *= s.drag; s.rot += s.spin * dt;
+      this.star(s.x, s.y, s.size * Math.sin(Math.PI * s.life / s.max), s.rot, s.hue);
+      return true;
+    });
     requestAnimationFrame(this.loop);
   }
 }
@@ -643,7 +685,8 @@ async function playIntro({ style = "fire", media = false, asset = null, src = nu
   for (const tr of el.querySelectorAll(".efx-track")) tr.style.setProperty("--dur", `${Math.max(12, tr.scrollWidth / 2 / 160)}s`);
   play(game.settings.get(ID, "sound"));
   void el.offsetWidth; el.classList.add("on");
-  await INTRO[style].run(makeCtx(el, style));
+  try { await INTRO[style].run(makeCtx(el, style)); }
+  catch (err) { console.error(`${ID} | intro "${style}" failed`, err); closeAll(); }
 }
 
 
@@ -710,7 +753,7 @@ async function playPlateIntro(style, src) {
 
   if (style === "magic") {
     const fx = own(new MagicFX(el.querySelector(".efx-magic")), ctx); fx.start();          // orbs + filaments collapse into the core
-    if (!await ctx.until(2600)) return;
+    if (!await ctx.until(2100)) return;
     el.classList.add("impact", "reveal");                                                  // burst: the artwork is revealed
     fx.burst(innerWidth / 2, innerHeight / 2, 220, 760);
     if (!await ctx.until(P.t.title)) return; lettersIn(55, false);
@@ -787,24 +830,32 @@ INTRO.magic = {
   async run(ctx) {
     const { el } = ctx;
     const fx = own(new MagicFX(el.querySelector(".efx-magic")), ctx); fx.start();
-    if (!await ctx.until(1700)) return;
-    el.classList.add("impact");
-    fx.burst(innerWidth / 2, innerHeight / 2, 220, 760);
-    if (!await ctx.until(2200)) return;
+    if (!await ctx.until(2000)) return;
+    el.classList.add("impact");                                 // convergence: flash + rings + glitter
+    fx.burst(innerWidth / 2, innerHeight / 2, 160, 640);
+    if (!await ctx.until(2100)) return;
     const title = el.querySelector(".efx-title"), chars = [...title.querySelectorAll(".ch")];
-    const mx = innerWidth / 2;
-    chars.forEach((ch, i) => { const [x] = centerOf(ch); ch.style.setProperty("--dx", `${(mx - x).toFixed(0)}px`); ch.style.setProperty("--rot", `${rand(-70,70).toFixed(0)}deg`); ch.style.animationDelay = `${i * 45}ms`; ch.classList.add("on"); });
-    fx.rects = [...el.querySelectorAll(".efx-band, .efx-title")].map(n => { const r=n.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height}; });
-    fx.sparkRate = 3.6;
-    if (!await ctx.until(3000)) return;
+    const [mx] = [innerWidth / 2];
+    chars.forEach((ch, i) => {                                  // letters burst outward from the center
+      const [x] = centerOf(ch);
+      ch.style.setProperty("--dx", `${(mx - x).toFixed(0)}px`);
+      ch.style.setProperty("--rot", `${rand(-50, 50).toFixed(0)}deg`);
+      ch.style.animationDelay = `${i * 55}ms`;
+      ch.classList.add("on");
+    });
+    const rects = [...el.querySelectorAll(".efx-band, .efx-title")].map(n => { const r = n.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+    fx.rects = rects; fx.sparkRate = 2.2;
+    if (!await ctx.until(2800)) return;
     el.classList.add("bands");
-    if (!await ctx.until(3850)) return;
+    if (!await ctx.until(3400)) return;
     title.classList.add("glow");
-    await finishIntro(ctx, () => { fx.sparkRate=0; const [cx,cy]=centerOf(title); fx.burst(cx,cy,180,560); });
+    await finishIntro(ctx, () => { fx.sparkRate = 0; const [cx, cy] = centerOf(title); fx.burst(cx, cy, 90, 420); });
   }
 };
 
-
+/* ------------------------------------------------------------------ */
+/*  Intro style: DARK FANTASY                                          */
+/* ------------------------------------------------------------------ */
 function foliageSVG(side) {
   const left = side === "left";
   const layers = [
@@ -843,19 +894,51 @@ const EYES_SVG = `
   <g class="eye"><path d="M228,70 Q288,20 348,70 Q288,114 228,70Z" fill="url(#efxEg)"/><ellipse cx="288" cy="70" rx="5" ry="27" fill="#070200"/><ellipse cx="280" cy="58" rx="4" ry="2.4" fill="#fff" opacity=".8"/></g>
 </svg>`;
 
+
+/** Tapered pointed shape along a cubic curve (fingers, talons). */
+function clawShape(p, wmax, { exp = 0.65, fall = 0.3 } = {}) {
+  const [p0, p1, p2, p3] = p, N = 28, L = [], R = [];
+  const bez = t => { const u = 1 - t; return [0, 1].map(k => u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k]); };
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, a = bez(Math.max(0, t - .01)), b = bez(Math.min(1, t + .01)), c = bez(t);
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+    const w = wmax * Math.pow(Math.sin(Math.PI * t), exp) * (1 - fall * t);
+    L.push(`${(c[0] + nx * w).toFixed(1)},${(c[1] + ny * w).toFixed(1)}`); R.push(`${(c[0] - nx * w).toFixed(1)},${(c[1] - ny * w).toFixed(1)}`);
+  }
+  return `M${L.join("L")}L${R.reverse().join("L")}Z`;
+}
+
+// A clawed silhouette pushing the brush aside from the right edge, rim-lit by the moon.
+const FINGERS = [
+  { c: [[270, 250], [225, 215], [165, 200], [105, 215]], w: 11, tip: [[105, 215], [85, 222], [68, 238], [56, 266]] },
+  { c: [[266, 285], [205, 268], [135, 268], [70, 292]], w: 12, tip: [[70, 292], [50, 300], [36, 318], [28, 348]] },
+  { c: [[266, 322], [205, 318], [140, 335], [88, 372]], w: 11, tip: [[88, 372], [70, 386], [60, 406], [58, 436]] },
+  { c: [[274, 355], [225, 368], [175, 398], [135, 440]], w: 9, tip: [[135, 440], [118, 456], [110, 476], [112, 504]] },
+  { c: [[300, 235], [288, 185], [262, 140], [225, 112]], w: 12, tip: [[225, 112], [208, 100], [196, 84], [194, 58]] }
+];
+const HAND_SVG = `
+<svg class="efx-hand" viewBox="0 0 440 540">
+  <defs><linearGradient id="efxHandG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a444f"/><stop offset=".55" stop-color="#171d24"/><stop offset="1" stop-color="#07090c"/></linearGradient></defs>
+  <g fill="url(#efxHandG)" stroke="rgba(205,220,240,.2)" stroke-width="1" stroke-linejoin="round">
+    <path d="M440,175 C390,200 350,222 305,236 C262,262 244,330 262,372 C300,392 380,404 440,470Z"/>
+    <path d="M262,262 C250,300 252,345 270,382 C300,410 340,404 362,372 C380,330 376,284 350,246 C320,226 282,232 262,262Z"/>
+    ${FINGERS.map(f => `<path d="${clawShape(f.c, f.w, { exp: .5, fall: .1 })}"/><path d="${clawShape(f.tip, 4.5, { exp: .45, fall: 0 })}"/>`).join("")}
+  </g>
+</svg>`;
+
+/** A few drips from selected letters plus falling droplets: tasteful, not every letter. */
 function startDrips(title, ctx) {
-  const chars = [...title.querySelectorAll(".ch")];
-  const make = () => {
-    const ch = chars[(Math.random() * chars.length) | 0], w = rand(5, 10);
+  const chars = [...title.querySelectorAll(".ch")].sort(() => Math.random() - .5).slice(0, 5);
+  chars.forEach((ch, i) => setTimeout(() => {
+    if (!ctx.alive()) return;
+    const w = rand(5, 9), len = rand(50, 150), dur = rand(2.6, 4.6), x = ch.offsetLeft + rand(.2, .8) * ch.offsetWidth, y = ch.offsetTop + ch.offsetHeight * .76;
     const d = document.createElement("i"); d.className = "efx-drip";
-    d.style.cssText = `left:${(ch.offsetLeft + rand(.12, .88) * ch.offsetWidth).toFixed(0)}px;top:${(ch.offsetTop + ch.offsetHeight * .74).toFixed(0)}px;--w:${w.toFixed(1)}px;--len:${rand(60, 240).toFixed(0)}px;--dur:${rand(1.8, 3.8).toFixed(1)}s`;
-    title.appendChild(d);
-  };
-  let n = 0;
-  const iv = setInterval(() => {
-    if (!ctx.alive() || n++ > 22) return clearInterval(iv);
-    make(); if (Math.random() < .5) make();
-  }, 160);
+    d.style.cssText = `left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--w:${w.toFixed(1)}px;--len:${len.toFixed(0)}px;--dur:${dur.toFixed(1)}s`; title.appendChild(d);
+    if (i % 2 === 0) setTimeout(() => {
+      if (!ctx.alive()) return;
+      const o = document.createElement("i"); o.className = "efx-drop"; o.style.cssText = `left:${x.toFixed(0)}px;top:${(y + len).toFixed(0)}px;--w:${w.toFixed(1)}px`; title.appendChild(o);
+    }, dur * 800);
+  }, 250 + i * 520 + rand(0, 300)));
 }
 
 INTRO.dark = {
@@ -863,34 +946,37 @@ INTRO.dark = {
     <div class="efx-dim"></div>
     <div class="efx-moon"></div>
     <div class="efx-fog f1"></div><div class="efx-fog f2"></div>
-    <canvas class="efx-dark-depth"></canvas>
     <div class="efx-stage-dark">${EYES_SVG}</div>
     <div class="efx-foliage left">${foliageSVG("left")}</div>
     <div class="efx-foliage right">${foliageSVG("right")}</div>
+    ${HAND_SVG}
     <div class="efx-vignette"></div>
     <div class="efx-shaker">${bannerHTML("dark")}</div>
-    <canvas class="efx-sparks"></canvas><div class="efx-blackout"></div><div class="efx-redflash"></div>`,
+    <div class="efx-blackout"></div>
+    <canvas class="efx-sparks"></canvas>
+    <div class="efx-redflash"></div>`,
   async run(ctx) {
-    const {el}=ctx;
-    const depth=own(new DarkFX(el.querySelector(".efx-dark-depth")),ctx);depth.start();
-    const sparks=own(new Sparks(el.querySelector(".efx-sparks")),ctx);
-    if(!await ctx.until(420))return;
-    el.classList.add("parting");depth.setParting(1);
-    if(!await ctx.until(1250))return;
-    el.classList.add("eyes");
-    if(!await ctx.until(2200))return;
-    el.classList.add("lunge");depth.setLunge(1);
-    if(!await ctx.until(2550))return;
-    el.classList.add("black");
-    if(!await ctx.until(2860))return;
-    const W=innerWidth,H=innerHeight;depth.bloodBurst(W*.5,H*.55,70);
-    sparks.burst(W*.5,H*.55,{n:85,speed:650,life:[.5,1.25],size:[1.5,4],gravity:720,colors:["95,0,0","170,8,10","55,0,0"],add:false});
-    if(!await ctx.until(3220))return;
-    el.classList.remove("black");el.classList.add("bands","impact");
-    const title=el.querySelector(".efx-title");title.classList.add("slam");title.querySelectorAll(".ch").forEach(c=>c.classList.add("on"));
-    const [cx,cy]=centerOf(title);sparks.burst(cx,cy,{n:105,speed:520,life:[.45,1.25],size:[1.5,4.5],gravity:820,colors:["120,0,0","180,12,14","65,0,0"],add:false});
-    startDrips(title,ctx);depth.bloodRate=5;
-    await finishIntro(ctx,()=>{depth.bloodRate=0;});
+    const { el } = ctx;
+    const sparks = own(new Sparks(el.querySelector(".efx-sparks")), ctx);
+    if (!await ctx.until(900)) return; el.classList.add("hand");          // a clawed silhouette pushes at the brush
+    if (!await ctx.until(1400)) return; el.classList.add("parting");      // the vegetation opens
+    if (!await ctx.until(2400)) return; el.classList.add("eyes");         // two faint eyes
+    if (!await ctx.until(3000)) return; el.classList.add("eyes2");        // they hold... silence
+    if (!await ctx.until(3500)) return; el.classList.add("lunge");        // it jumps
+    if (!await ctx.until(3750)) return; el.classList.add("black");        // cut to black (scene swaps at ~3800)
+    if (!await ctx.until(3850)) return; el.classList.add("splat");
+    const W = innerWidth, H = innerHeight, blood = ["120,0,0", "170,10,10", "80,0,0"];
+    sparks.burst(W * .5, H * .5, { n: 120, speed: 950, life: [.6, 1.5], size: [3, 7], gravity: 950, colors: blood, add: false });
+    sparks.burst(W * .35, H * .62, { n: 40, speed: 600, life: [.6, 1.3], size: [2, 5], gravity: 900, colors: blood, add: false, angle: -.8, spread: 1.4 });
+    sparks.burst(W * .66, H * .58, { n: 40, speed: 600, life: [.6, 1.3], size: [2, 5], gravity: 900, colors: blood, add: false, angle: -2.3, spread: 1.4 });
+    if (!await ctx.until(4300)) return; el.classList.remove("black");     // the title appears out of the dark
+    const title = el.querySelector(".efx-title");
+    title.querySelectorAll(".ch").forEach(c => { c.style.setProperty("--d", `${rand(0, .45).toFixed(2)}s`); c.style.setProperty("--dy", `${rand(-.09, .12).toFixed(2)}em`); c.classList.add("on"); });
+    title.classList.add("slam"); el.classList.add("bands", "impact");
+    const [cx, cy] = centerOf(title);
+    sparks.burst(cx, cy, { n: 70, speed: 700, life: [.6, 1.4], size: [3, 7], gravity: 1000, colors: blood, add: false });
+    if (!await ctx.until(4700)) return; startDrips(title, ctx); title.classList.add("glow");
+    await finishIntro(ctx);
   }
 };
 

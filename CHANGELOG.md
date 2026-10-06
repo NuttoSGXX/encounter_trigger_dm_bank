@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.1 — Restored Brief + Centered Title
+- **ENCOUNTER is centered again.** The 0.5.2 cleanup layer had pushed the title down (56-58%) and shrunk it; removed. Added compensation for the trailing letter-spacing so it is exactly centered.
+- **Magical restored to the original brief:** many colored streams spiral into the center, burst, the title is born from the core, with glitter. The running text bands are back, restyled as shimmering arcane text with star separators.
+- **Dark Fantasy restored to the original brief:** moonlight and fog, a clawed hand parts the brush, two faint eyes that hold still, a sudden lunge, cut to black, blood, then ENCOUNTER with a few blood drips and falling droplets (not every letter). Grey/black running text with cross separators.
+- Removed the "beast silhouette" overlay, the hidden running-text bands, and the orb/ribbon Magical variant introduced in 0.5.x.
+- Intro errors are now caught: if a cinematic throws, the overlay is cleaned up instead of leaving the screen stuck.
+- Magical still-plate timing aligned with the restored convergence.
+- README rewritten.
+
+## 0.8.0 — Floating Launcher
+- The launcher is now a **floating panel like VN Stage**, not a Foundry window. Grab the header and it moves immediately (no window menu, no extra clicks). Position is remembered per client; Esc or × closes it.
+- Opening it again from the Token controls toggles it. Still GM-only (button hidden for players, and the panel refuses to start for non-GMs).
+- Removed the ApplicationV2 window code and the old drag workaround.
+
 ## 0.7.0 — Still Plates
 - New optional **still plates**: drop `magical.(webp|jpg|png)` / `dark-fantasy.(webp|jpg|png)` into `assets/plates/` and that style animates your artwork with code (push-in, fog, convergence/burst reveal, lunge zoom, blood, typography). Priority: video plate > still plate > procedural FX.
 - Clients are told which asset to use by the GM, so everyone sees the same cinematic.

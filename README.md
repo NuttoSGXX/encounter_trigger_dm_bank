@@ -1,63 +1,80 @@
 # Encounter FX
 
-A compact, GM-only cinematic encounter starter for Foundry VTT v14 + dnd5e.
+A GM-only cinematic **Start Encounter** tool for **Foundry VTT v14** and the **dnd5e** system.
 
-## v0.5.3 — Visual Overhaul
+Pick a scene, pick a style, press **Start Encounter**. The screen is taken over by a full-screen cinematic, everyone is moved to the scene, the tokens are added to Foundry's **native Combat**, every player rolls their own 3D d20 for initiative at the same time, the order is announced, and combat starts automatically.
 
-Version 0.4 focuses on a cleaner GM workflow and stronger cinematic identity.
+The launcher is small and practical. The cinematic is the spectacle.
 
-### Launcher
+## Install
 
-- Compact GM utility panel instead of a large dashboard.
-- English-only UI.
-- Dark Magic Academia visual language.
-- Scene selection through a compact dropdown.
-- Compact party selection with player portraits.
-- Three FX style selectors: Default, Magical, Dark Fantasy.
-- Hostile-token toggle.
-- Preview and Start Encounter controls.
-- Subtle ambient motion, depth, sigils, and hover feedback.
-- Reduced-motion support.
+Manifest URL:
 
-### Cinematic Styles
+```
+https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/latest/download/module.json
+```
 
-**Default — Inferno**
+Requirements: Foundry VTT v14, dnd5e 6.0.0 or newer.
 
-Fire, embers, heat distortion, impact, and a fiery `ENCOUNTER` title.
+## Using it
 
-**Magical — Arcane Convergence**
+1. Click the flame button in the **Token controls** (GM only). The launcher appears as a small floating panel.
+2. **Grab the header and drag** it anywhere. The position is remembered on your machine. `Esc` or `×` closes it.
+3. Choose the **Scene**, the **Style**, which **players** join the combat, and whether **hostile tokens** of that scene are added.
+4. **Preview** plays only the cinematic on your screen (no scene change, no combat). **Start Encounter** runs the real thing.
 
-Multiple colored magical streams converge toward the center, burst into light, and form a sparkling `ENCOUNTER` title.
+You can also open it from a macro: `game.modules.get("encounter-fx").api.open()`
 
-**Dark Fantasy — Moonlit Hunt**
+### What happens after Start
 
-Moonlight, fog, parting vegetation, predatory eyes, a creature lunge, and a blood-accented `ENCOUNTER` title.
+1. Cinematic plays for everyone; the scene is swapped while the screen is covered.
+2. A real `Combat` is found or created for that scene and the selected tokens are added.
+3. NPCs and hidden combatants roll initiative silently.
+4. One 3D d20 appears per player character (with the character and player name under it). Each player clicks their own die; everyone can roll at the same time. The GM can click any die or use **Roll All Remaining**.
+5. Natural 20 / natural 1 get their own effect.
+6. The initiative order is announced and combat starts automatically. No confirmation button.
+7. `Esc` (GM) cancels the overlay if something goes wrong.
 
-### Encounter Flow
+Players only ever see the cinematic and their own dice; they cannot open the launcher.
 
-1. The GM opens Encounter FX from the Token controls.
-2. Select a destination scene.
-3. Select party members.
-4. Select an FX style.
-5. Optionally add hostile tokens from the destination scene.
-6. Preview the style or start the encounter.
-7. The chosen cinematic takes over the screen.
-8. The existing synchronized 3D d20 initiative sequence runs.
-9. Initiative is announced and combat starts automatically.
+## Styles
 
-## Installation
+| Style | Look |
+|---|---|
+| **Default** | Fire. The title is typed letter by letter, slammed onto the screen, and glows like embers. |
+| **Magical** | Many colored magic streams spiral into the center, burst, and the title is born from the core. Glittering stars, shimmering running text. |
+| **Dark Fantasy** | Moonlit fog, a clawed hand parts the brush, two eyes in the dark, a sudden lunge, black, blood, and a title that bleeds. Grey/black running text. |
 
-In Foundry VTT, install the module using the manifest URL:
+All three work out of the box with procedural effects (no extra files).
 
-`https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/latest/download/module.json`
+## Bring your own art (optional)
 
-## Compatibility
+For a look beyond what code can draw, you can feed a style your own artwork or video. Priority per style: **video > still plate > procedural effects**. If a file is missing the module falls back automatically.
 
-- Foundry VTT: v14+
-- dnd5e: 6.0.0+
+| Kind | Where | Notes |
+|---|---|---|
+| Video plate | `assets/video/default.webm`, `magical.webm`, `dark-fantasy.webm` | 1080p, 6-9 s, opaque. See `assets/README.md` for specs and cue timings. |
+| Still plate | `assets/plates/magical.(webp\|jpg\|png)`, `dark-fantasy.(webp\|jpg\|png)` | 16:9 artwork (for example from ChatGPT). The module animates it: reveal, push-in, fog, lunge, blood, typography. |
 
-## Customisation
+Guides: `docs/PLATE_PROMPTS.md` (image prompts) and `docs/VIDEO_PROMPTS.md` (video prompts and cue sync).
+Cue timings are in `MEDIA` and `PLATES` at the top of `scripts/main.js`.
 
-Style phrases, timings, and colors can be adjusted in `scripts/main.js` inside `STYLES`.
+## Settings and customising
 
-The launcher styling is in `styles/encounter-fx.css` and the compact launcher markup is in `templates/launcher.hbs`.
+- **Encounter stinger sound** (Module Settings): an audio file played when the encounter starts.
+- Running text, timings and colors per style: `STYLES` at the top of `scripts/main.js`.
+- Only list players in the initiative summary: `SHOW_NPC_IN_ORDER = false`.
+- Reduced motion (OS setting) is respected for the heaviest effects.
+
+## Troubleshooting
+
+- **Nothing happens when I press Start:** pick a scene first (the field is required). Check the browser console (F12) for `encounter-fx` messages.
+- **A player has no die:** the character needs a token in the destination scene, and a non-GM user must own the character.
+- **Overlay stuck:** the GM can press `Esc`.
+- **Fonts look plain offline:** the UI uses Google Fonts when online and falls back to system serif fonts.
+
+## Releasing (maintainers)
+
+Create a GitHub Release with a tag like `v0.8.1`. The workflow patches `module.json`, zips `module.json scripts templates styles assets`, and uploads `module.json` and `module.zip` to the release.
+
+See `CHANGELOG.md` for version history.
