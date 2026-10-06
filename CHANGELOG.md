@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.3 — Stability Fix
+- Restored GM encounter orchestration and initiative workflow accidentally omitted from 0.5.2.
+- Restored shared cinematic intro scaffolding and Default/Magical intro definitions.
+- Fixed Dark Fantasy intro reference to the actual eye reveal asset.
+- Restored compact-header dragging without visible helper text.
+- Kept the redesigned Magical and Dark Fantasy visual FX.
+
+# Changelog
+
 ## 0.5.2 — Cinematic Visual Cleanup
 
 - Reworked Magical FX into a cleaner semi-real arcane convergence with larger dimensional orbs, restrained ribbons, central core and controlled sparkle.

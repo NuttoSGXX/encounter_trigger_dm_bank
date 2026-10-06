@@ -133,10 +133,30 @@ class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
 function decorateLauncher(el, app) {
   if (!el || el._efxDecorated) return;
   el._efxDecorated = true;
-  // Let Foundry V14 own dragging through its native ApplicationV2 frame.
-  // The inner Encounter header is intentionally not presented as a fake drag handle.
-  const nativeHeader = app?.window?.header || el.querySelector(".window-header");
-  if (nativeHeader) nativeHeader.style.cursor = "grab";
+  // Compact launcher: drag the visible Encounter header. No helper text is shown.
+  const dragHandle = el.querySelector(".efx-compact-head");
+  if (dragHandle && app?.setPosition) {
+    dragHandle.style.cursor = "grab";
+    dragHandle.addEventListener("pointerdown", ev => {
+      if (ev.button !== 0 || ev.target.closest("button,input,select,label,a")) return;
+      ev.preventDefault();
+      app.bringToFront?.();
+      const start = { x: ev.clientX, y: ev.clientY, left: app.position.left ?? 0, top: app.position.top ?? 0 };
+      dragHandle.setPointerCapture?.(ev.pointerId);
+      dragHandle.style.cursor = "grabbing";
+      const move = e => app.setPosition({ left: start.left + e.clientX - start.x, top: start.top + e.clientY - start.y });
+      const up = e => {
+        dragHandle.style.cursor = "grab";
+        try { dragHandle.releasePointerCapture?.(e.pointerId); } catch (_) {}
+        dragHandle.removeEventListener("pointermove", move);
+        dragHandle.removeEventListener("pointerup", up);
+        dragHandle.removeEventListener("pointercancel", up);
+      };
+      dragHandle.addEventListener("pointermove", move);
+      dragHandle.addEventListener("pointerup", up);
+      dragHandle.addEventListener("pointercancel", up);
+    });
+  }
   const motes = el.querySelector(".bg-motes");
   if (motes) {
     for (let i = 0; i < 22; i++) {
@@ -151,6 +171,118 @@ function decorateLauncher(el, app) {
     el.style.setProperty("--mx", ((ev.clientX-r.left)/r.width-.5).toFixed(3));
     el.style.setProperty("--my", ((ev.clientY-r.top)/r.height-.5).toFixed(3));
   });
+}
+
+/* ------------------------------------------------------------------ */
+/*  GM orchestration                                                   */
+/* ------------------------------------------------------------------ */
+const GM = { combatId: null, pcs: new Map(), rolled: new Set(), finishing: false, style: "fire" };
+
+function broadcast(msg) { game.socket.emit(SOCKET, msg); onMessage(msg); }
+const ownersOf = c => game.users.filter(u => !u.isGM && c.actor?.testUserPermission(u, "OWNER"));
+
+async function launch({ sceneId, actorIds = [], hostile = true, style = "fire" }) {
+  if (!game.user.isGM) return;
+  if (!STYLES[style]) style = "fire";
+  const scene = game.scenes.get(sceneId);
+  if (!scene) return ui.notifications.error("Encounter FX: scene not found.");
+  const T = STYLES[style].t, t0 = Date.now();
+  GM.pcs = new Map(); GM.rolled = new Set(); GM.finishing = false; GM.combatId = null; GM.style = style;
+
+  broadcast({ action: "intro", style });
+  await sleep(T.switch);
+
+  // 1) Move everyone to the target scene while the screen is covered
+  const needActivate = !scene.active;
+  const needView = game.scenes.viewed?.id !== scene.id;
+  if (needActivate || needView) {
+    const ready = new Promise(r => { Hooks.once("canvasReady", r); setTimeout(r, 6000); });
+    if (needActivate) await scene.activate(); else await scene.view();
+    await ready;
+  }
+
+  // 2) Real Combat document: find or create, then add tokens
+  try {
+    const combat = await ensureCombat(scene, actorIds, hostile);
+    GM.combatId = combat.id;
+
+    // 3) NPCs (and hidden combatants) roll silently; player characters wait for their own die
+    const updates = [];
+    for (const c of combat.combatants) {
+      const owners = ownersOf(c);
+      if (owners.length && !c.hidden) {
+        GM.pcs.set(c.id, { id: c.id, name: c.name, img: c.img, player: owners.map(u => u.name).join(", "), owners: owners.map(u => u.id) });
+      } else {
+        const r = await rollInit(c);
+        updates.push({ _id: c.id, initiative: r.total });
+      }
+    }
+    if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
+  } catch (err) {
+    console.error(`${ID} | combat setup failed`, err);
+    ui.notifications.error("Encounter FX: failed to set up the Combat (see console).");
+    return broadcast({ action: "close" });
+  }
+
+  await sleep(Math.max(0, T.dice - (Date.now() - t0)));
+  if (!GM.pcs.size) { GM.finishing = true; return finishOrder(0); }
+  broadcast({ action: "dice", dice: [...GM.pcs.values()], style });
+}
+
+async function ensureCombat(scene, actorIds, hostile) {
+  let combat = game.combats.find(c => c.scene?.id === scene.id);
+  if (!combat) combat = await getDocumentClass("Combat").create({ scene: scene.id, active: true });
+  if (!combat.active && typeof combat.activate === "function") await combat.activate();
+
+  const wanted = new Set(actorIds), found = new Set(), data = [];
+  for (const t of scene.tokens) {
+    const isPC = t.actorId && wanted.has(t.actorId);
+    const isFoe = hostile && t.disposition === CONST.TOKEN_DISPOSITIONS.HOSTILE;
+    if (!isPC && !isFoe) continue;
+    if (isPC) found.add(t.actorId);
+    if (combat.combatants.some(c => c.tokenId === t.id)) continue;
+    data.push({ tokenId: t.id, sceneId: scene.id, actorId: t.actorId, hidden: t.hidden });
+  }
+  if (data.length) await combat.createEmbeddedDocuments("Combatant", data);
+
+  const missing = actorIds.filter(id => !found.has(id)).map(id => game.actors.get(id)?.name).filter(Boolean);
+  if (missing.length) ui.notifications.warn(`No token in this scene for: ${missing.join(", ")}`);
+  return combat;
+}
+
+async function rollInit(c) {
+  const roll = c.getInitiativeRoll();
+  await roll.evaluate();
+  const d20 = roll.dice.find(d => d.faces === 20);
+  const kept = d20?.results.find(r => r.active)?.result;
+  return { nat: clamp(kept ?? Math.round(roll.total), 1, 20), total: roll.total };
+}
+
+async function gmRollOne(id, userId) {
+  const combat = game.combats.get(GM.combatId);
+  const c = combat?.combatants.get(id);
+  const user = game.users.get(userId);
+  if (!c || !user || !GM.pcs.has(id) || GM.rolled.has(id)) return;
+  if (!user.isGM && !c.actor?.testUserPermission(user, "OWNER")) return;
+  GM.rolled.add(id);
+  const r = await rollInit(c);
+  await c.update({ initiative: r.total });
+  broadcast({ action: "rolled", id, nat: r.nat, total: Math.round(r.total * 100) / 100 });
+  if (GM.rolled.size >= GM.pcs.size && !GM.finishing) { GM.finishing = true; finishOrder(2300); }
+}
+
+async function finishOrder(wait) {
+  await sleep(wait);
+  const combat = game.combats.get(GM.combatId);
+  if (!combat) return broadcast({ action: "close" });
+  const order = combat.combatants.contents
+    .filter(c => !c.hidden && (SHOW_NPC_IN_ORDER || GM.pcs.has(c.id)))
+    .sort((a, b) => (b.initiative ?? -999) - (a.initiative ?? -999))
+    .map(c => ({ name: c.name, img: c.img, total: Math.round((c.initiative ?? 0) * 100) / 100, pc: GM.pcs.has(c.id) }));
+  broadcast({ action: "order", order, style: GM.style });
+  await sleep(1400 + order.length * 180 + 3200);
+  try { await combat.startCombat(); ui.combat?.activate?.(); } catch (e) { console.warn(`${ID} |`, e); }
+  broadcast({ action: "close" });
 }
 
 /* ------------------------------------------------------------------ */
@@ -413,6 +545,121 @@ class DarkFX {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Intro: shared scaffolding                                          */
+/* ------------------------------------------------------------------ */
+function trackHTML(S, reverse) {
+  const list = reverse ? [...S.phrases].reverse() : [...S.phrases];
+  const reps = Math.max(4, Math.ceil(24 / list.length));
+  const half = Array.from({ length: reps }, () => list.map(p => `<span>${esc(p)}</span><i>${S.sep}</i>`).join("")).join("");
+  return half + half;
+}
+const bannerHTML = style => `
+  <div class="efx-banner">
+    <div class="efx-band efx-band-top"><div class="efx-track">${trackHTML(STYLES[style], false)}</div></div>
+    <div class="efx-title">${[...TITLE].map(ch => `<span class="ch">${esc(ch)}</span>`).join("")}</div>
+    <div class="efx-band efx-band-bot"><div class="efx-track">${trackHTML(STYLES[style], true)}</div></div>
+  </div>`;
+
+function makeCtx(el, style) {
+  const t0 = performance.now(), run = live.run;
+  return {
+    el, style, S: STYLES[style], alive: () => live.run === run,
+    until: async ms => { const w = ms - (performance.now() - t0); if (w > 0) await sleep(w); return live.run === run; }
+  };
+}
+
+async function finishIntro(ctx, onLeave) {
+  if (!await ctx.until(ctx.S.t.leave)) return;
+  ctx.el.classList.add("leave"); onLeave?.();
+  if (!await ctx.until(ctx.S.t.end)) return;
+  ctx.el.remove();
+  for (const fx of [...live.fx]) if (fx.owner === ctx.el) { fx.stop?.(); live.fx.delete(fx); }
+}
+const own = (fx, ctx) => { fx.owner = ctx.el; return track(fx); };
+
+async function playIntro({ style = "fire" } = {}) {
+  if (!STYLES[style]) style = "fire";
+  closeAll();
+  const el = document.createElement("div");
+  el.className = `efx-intro st-${style}`;
+  el.innerHTML = INTRO[style].html();
+  root().appendChild(el);
+  for (const tr of el.querySelectorAll(".efx-track")) tr.style.setProperty("--dur", `${Math.max(12, tr.scrollWidth / 2 / 160)}s`);
+  play(game.settings.get(ID, "sound"));
+  void el.offsetWidth; el.classList.add("on");
+  await INTRO[style].run(makeCtx(el, style));
+}
+
+const centerOf = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+
+/* ------------------------------------------------------------------ */
+/*  Intro style: FIRE (Default)                                        */
+/* ------------------------------------------------------------------ */
+const INTRO = {};
+INTRO.fire = {
+  html: () => `
+    <div class="efx-dim"></div>
+    <div class="efx-shaker">
+      <canvas class="efx-fire"></canvas><canvas class="efx-sparks"></canvas>
+      ${bannerHTML("fire")}
+      <div class="efx-ring"></div>
+    </div>
+    <div class="efx-flash"></div>`,
+  async run(ctx) {
+    const { el } = ctx;
+    const fire = own(makeFire(el.querySelector(".efx-fire")), ctx); fire.start();
+    const sparks = own(new Sparks(el.querySelector(".efx-sparks")), ctx); sparks.rain = 1.6;
+    if (!await ctx.until(1300)) return;
+    const title = el.querySelector(".efx-title"), chars = [...title.querySelectorAll(".ch")];
+    for (const ch of chars) {                                   // typewriter
+      ch.classList.add("on");
+      const [x, y] = centerOf(ch);
+      sparks.burst(x, y, { n: 7, speed: 260, life: [.25, .6], size: [1.5, 3], gravity: 300 });
+      await sleep(70); if (!ctx.alive()) return;
+    }
+    if (!await ctx.until(1300 + chars.length * 70 + 90)) return;
+    title.classList.add("slam");                                // slam
+    if (!await ctx.until(1300 + chars.length * 70 + 320)) return;
+    el.classList.add("impact", "bands");
+    const [cx, cy] = centerOf(title);
+    sparks.burst(cx, cy, { n: 180, speed: 900, life: [.5, 1.4], size: [2, 6], gravity: 700 });
+    sparks.burst(cx, cy, { n: 60, speed: 500, life: [.4, 1], size: [3, 7], gravity: 200, colors: ["255,255,230", "255,200,90"] });
+    setTimeout(() => title.classList.add("glow"), 450);
+    await finishIntro(ctx, () => { fire.exit(); sparks.rain = 0; });
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/*  Intro style: MAGICAL                                               */
+/* ------------------------------------------------------------------ */
+INTRO.magic = {
+  html: () => `
+    <div class="efx-dim"></div>
+    <canvas class="efx-magic"></canvas>
+    <div class="efx-shaker">${bannerHTML("magic")}<div class="efx-ring"></div><div class="efx-ring r2"></div></div>
+    <div class="efx-flash"></div>`,
+  async run(ctx) {
+    const { el } = ctx;
+    const fx = own(new MagicFX(el.querySelector(".efx-magic")), ctx); fx.start();
+    if (!await ctx.until(1700)) return;
+    el.classList.add("impact");
+    fx.burst(innerWidth / 2, innerHeight / 2, 220, 760);
+    if (!await ctx.until(2200)) return;
+    const title = el.querySelector(".efx-title"), chars = [...title.querySelectorAll(".ch")];
+    const mx = innerWidth / 2;
+    chars.forEach((ch, i) => { const [x] = centerOf(ch); ch.style.setProperty("--dx", `${(mx - x).toFixed(0)}px`); ch.style.setProperty("--rot", `${rand(-70,70).toFixed(0)}deg`); ch.style.animationDelay = `${i * 45}ms`; ch.classList.add("on"); });
+    fx.rects = [...el.querySelectorAll(".efx-band, .efx-title")].map(n => { const r=n.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height}; });
+    fx.sparkRate = 3.6;
+    if (!await ctx.until(3000)) return;
+    el.classList.add("bands");
+    if (!await ctx.until(3850)) return;
+    title.classList.add("glow");
+    await finishIntro(ctx, () => { fx.sparkRate=0; const [cx,cy]=centerOf(title); fx.burst(cx,cy,180,560); });
+  }
+};
+
+
 function foliageSVG(side) {
   const left = side === "left";
   const layers = [
@@ -472,7 +719,7 @@ INTRO.dark = {
     <div class="efx-moon"></div>
     <div class="efx-fog f1"></div><div class="efx-fog f2"></div>
     <canvas class="efx-dark-depth"></canvas>
-    <div class="efx-stage-dark">${WOLF}</div>
+    <div class="efx-stage-dark">${EYES_SVG}</div>
     <div class="efx-foliage left">${foliageSVG("left")}</div>
     <div class="efx-foliage right">${foliageSVG("right")}</div>
     <div class="efx-vignette"></div>
