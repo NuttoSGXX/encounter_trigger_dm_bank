@@ -385,3 +385,110 @@
 .efx-row .tot { font: 900 1.7rem Georgia, serif; color: var(--tot); }
 .efx-row .rk { width: 1.6em; opacity: .6; }
 @keyframes efx-slide { to { opacity: 1; transform: none; } }
+
+/* ======================================================================
+   v0.4.0 COMPACT LAUNCHER
+   Small GM utility panel: practical UI, cinematic FX remain full-screen.
+   ====================================================================== */
+.efx-launcher.application {
+  width: 440px !important;
+  max-width: min(440px, 92vw) !important;
+  max-height: min(330px, 78vh) !important;
+  border-radius: 7px;
+  overflow: hidden;
+}
+.efx-launcher .window-content {
+  max-height: min(292px, calc(78vh - 38px));
+  overflow: hidden;
+}
+.efx-launcher .window-header { min-height: 32px; height: 32px; padding: 0 8px; }
+.efx-launcher .window-header .window-title { font-size: .7rem; letter-spacing: .18em; }
+.efx-launcher .window-header .header-button { font-size: .72rem; }
+.efx-ui-compact { padding: 0; min-height: 0; font-family: var(--efx-serif); }
+.efx-ui-compact .efx-bg { background: linear-gradient(180deg, #12060a 0%, #090305 60%, #100407 100%); }
+.efx-ui-compact .bg-sigil-wrap { width: 430px; height: 430px; margin: -215px 0 0 -215px; top: 50%; opacity: .7; }
+.efx-ui-compact .bg-glow { inset: -30%; background: radial-gradient(circle at 52% 0%, rgba(215,145,45,.18), transparent 34%), radial-gradient(circle at 8% 100%, rgba(145,10,28,.2), transparent 48%), radial-gradient(circle at 100% 60%, rgba(100,10,35,.16), transparent 42%); }
+.efx-compact-head {
+  position: relative; z-index: 1; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 9px;
+  padding: 9px 12px 7px; border-bottom: 1px solid rgba(201,162,75,.34);
+  background: linear-gradient(180deg, rgba(48,10,17,.86), rgba(20,5,8,.65));
+  box-shadow: inset 0 1px 0 rgba(255,225,170,.12), 0 4px 15px rgba(0,0,0,.4);
+}
+.efx-compact-mark {
+  width: 27px; height: 27px; display: grid; place-items: center; color: #f0d28a; font-size: .78rem;
+  border: 1px solid rgba(201,162,75,.65); border-radius: 4px; background: linear-gradient(145deg,#6e1220,#26060b);
+  box-shadow: 0 0 10px rgba(190,25,45,.28), inset 0 1px 0 rgba(255,220,160,.2);
+}
+.efx-compact-head h1 { margin: 0; border: 0; font-size: .9rem; line-height: 1; letter-spacing: .2em; text-transform: uppercase; color: #f0d28a; text-shadow: 0 0 9px rgba(210,45,55,.35); }
+.efx-compact-head p { margin: 3px 0 0; font: italic .58rem "IM Fell English SC", Georgia, serif; letter-spacing: .08em; color: #a99a7f; }
+.efx-compact-status { padding: 3px 5px; border: 1px solid rgba(201,162,75,.42); border-radius: 3px; color: #d8c69f; font-size: .5rem; letter-spacing: .12em; text-transform: uppercase; background: rgba(0,0,0,.28); }
+.efx-compact-body { position: relative; z-index: 1; padding: 8px 10px 7px; }
+.efx-field { display: block; margin: 0 0 7px; }
+.efx-field > span { display: block; margin: 0 0 3px 2px; color: #b9a57d; font-size: .52rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+.efx-launcher .efx-field select {
+  width: 100%; height: 29px; padding: 0 9px; color: #efe3c6; font: 600 .67rem var(--efx-serif); letter-spacing: .04em;
+  border: 1px solid rgba(201,162,75,.4); border-radius: 4px; outline: 0;
+  background: linear-gradient(180deg, rgba(37,9,14,.94), rgba(13,4,6,.96)); box-shadow: inset 0 2px 5px rgba(0,0,0,.55);
+}
+.efx-launcher .efx-field select:focus { border-color: #e0bb62; box-shadow: 0 0 10px rgba(190,35,50,.25), inset 0 2px 5px rgba(0,0,0,.55); }
+.efx-launcher .efx-field select option { background: #160609; color: #efe3c6; }
+.efx-style-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.efx-style-mini { position: relative; min-width: 0; display: grid; grid-template-columns: 31px 1fr; grid-template-rows: 1fr 1fr; column-gap: 6px; align-items: center; padding: 4px 6px 4px 4px; cursor: pointer; border: 1px solid rgba(201,162,75,.28); border-radius: 4px; background: linear-gradient(180deg, rgba(47,11,17,.88), rgba(16,4,7,.94)); box-shadow: inset 0 1px 0 rgba(255,220,160,.08), 0 3px 7px rgba(0,0,0,.35); transition: transform .15s, border-color .2s, box-shadow .2s, background .2s; }
+.efx-style-mini:hover { transform: translateY(-1px); border-color: rgba(224,187,98,.72); box-shadow: 0 6px 12px rgba(0,0,0,.45), 0 0 10px rgba(170,25,45,.22); }
+.efx-style-mini input { position: absolute; opacity: 0; pointer-events: none; }
+.efx-style-mini:has(input:checked) { border-color: #e0bb62; background: linear-gradient(180deg, rgba(101,18,30,.88), rgba(31,5,9,.95)); box-shadow: 0 0 0 1px rgba(224,187,98,.18), 0 0 15px rgba(190,30,50,.28), inset 0 1px 0 rgba(255,220,160,.16); }
+.efx-mini-art { grid-row: 1 / 3; position: relative; width: 31px; height: 31px; overflow: hidden; display: grid; place-items: center; border-radius: 3px; border: 1px solid rgba(201,162,75,.3); }
+.efx-mini-art b { position: relative; z-index: 2; font-size: .72rem; color: #fff0c4; text-shadow: 0 0 8px currentColor; }
+.efx-style-mini-fire .efx-mini-art { background: radial-gradient(circle at 50% 80%, #ffd37a 0 8%, #ff6d1a 30%, #4c0700 72%, #100203); }
+.efx-style-mini-fire .efx-mini-art b::before { content: "◆"; }
+.efx-style-mini-fire .efx-mini-art i { position: absolute; width: 4px; height: 10px; bottom: 2px; border-radius: 50% 50% 40% 40%; background: #ffd27a; filter: blur(.2px); animation: efx-mini-fire 1s ease-in-out infinite alternate; }
+.efx-style-mini-fire .efx-mini-art i:first-child { left: 9px; } .efx-style-mini-fire .efx-mini-art i:nth-child(2) { left: 19px; height: 7px; animation-delay: -.4s; }
+@keyframes efx-mini-fire { to { transform: translateY(-6px) scale(.7); opacity: .5; } }
+.efx-style-mini-magic .efx-mini-art { background: radial-gradient(circle, #fff 0 7%, #cda5ff 15%, transparent 44%), conic-gradient(#ff66cf,#8d6bff,#4fd8ff,#ffd66d,#62e9b2,#ff66cf); }
+.efx-style-mini-magic .efx-mini-art b::before { content: "✦"; }
+.efx-style-mini-magic .efx-mini-art i { position: absolute; inset: 7px; border: 1px solid rgba(255,255,255,.65); border-radius: 50%; animation: efx-mini-magic 2s linear infinite; }
+.efx-style-mini-magic .efx-mini-art i:nth-child(2) { inset: 11px 4px; transform: rotate(55deg); animation-direction: reverse; }
+@keyframes efx-mini-magic { to { transform: rotate(360deg); } }
+.efx-style-mini-dark .efx-mini-art { background: radial-gradient(circle at 35% 25%, #737c86, #1b2025 48%, #030405 100%); }
+.efx-style-mini-dark .efx-mini-art b::before { content: "☾"; }
+.efx-style-mini-dark .efx-mini-art i { position: absolute; width: 5px; height: 3px; top: 16px; background: #d5dce2; border-radius: 50%; box-shadow: 0 0 6px #d5dce2; animation: efx-mini-eye 2.8s ease-in-out infinite; }
+.efx-style-mini-dark .efx-mini-art i:first-child { left: 8px; } .efx-style-mini-dark .efx-mini-art i:nth-child(2) { left: 18px; animation-delay: -.1s; }
+@keyframes efx-mini-eye { 0%,38%,100% { opacity: 0; } 46%,82% { opacity: .9; } 86% { opacity: .1; } }
+.efx-mini-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #eee1c1; font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.efx-style-mini:has(input:checked) .efx-mini-name { color: #fff0c4; }
+.efx-compact-bottom { display: grid; grid-template-columns: auto 1fr; gap: 7px; align-items: center; }
+.efx-compact-options { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.efx-mini-toggle, .efx-party-count { display: inline-flex; align-items: center; gap: 5px; color: #bba985; font-size: .54rem; letter-spacing: .04em; }
+.efx-mini-toggle { cursor: pointer; }
+.efx-mini-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.efx-mini-toggle .sw { width: 24px; height: 13px; position: relative; flex: none; border-radius: 8px; border: 1px solid rgba(201,162,75,.5); background: #120507; box-shadow: inset 0 2px 4px rgba(0,0,0,.7); }
+.efx-mini-toggle .sw::after { content: ""; position: absolute; width: 9px; height: 9px; left: 1px; top: 1px; border-radius: 50%; background: #bda060; transition: left .18s; }
+.efx-mini-toggle input:checked + .sw { background: #6e1020; box-shadow: 0 0 7px rgba(190,30,50,.4), inset 0 2px 4px rgba(0,0,0,.55); }
+.efx-mini-toggle input:checked + .sw::after { left: 12px; background: #f0d28a; }
+.efx-party-count .icon { color: #d2b875; font-size: .65rem; }
+.efx-party-count .count { color: #f0d28a; font-weight: 700; }
+.efx-actor-strip { min-width: 0; display: flex; justify-content: flex-end; gap: 4px; overflow: hidden; }
+.efx-actor-mini { position: relative; width: 24px; height: 24px; flex: none; display: block; cursor: pointer; border: 1px solid rgba(201,162,75,.25); border-radius: 3px; overflow: hidden; opacity: .55; transition: opacity .15s, border-color .15s, transform .15s; }
+.efx-actor-mini:hover { opacity: .9; transform: translateY(-1px); }
+.efx-actor-mini input { position: absolute; opacity: 0; pointer-events: none; }
+.efx-actor-mini:has(input:checked) { opacity: 1; border-color: #e0bb62; box-shadow: 0 0 8px rgba(210,40,50,.3); }
+.efx-actor-mini img { display: block; width: 100%; height: 100%; object-fit: cover; border: 0; }
+.efx-actor-mini span { position: absolute; inset: auto 0 0; padding: 1px 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #fff; background: rgba(0,0,0,.72); font-size: .38rem; text-align: center; }
+.efx-compact-foot { position: relative; z-index: 1; display: grid; grid-template-columns: 86px 1fr; gap: 7px; padding: 7px 10px 9px; border-top: 1px solid rgba(201,162,75,.25); background: linear-gradient(180deg, rgba(18,4,7,.7), rgba(6,2,4,.9)); }
+.efx-launcher .efx-compact-foot button { min-height: 28px; height: 28px; margin: 0; border-radius: 4px; font: 700 .6rem var(--efx-serif); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.efx-launcher .efx-preview-btn { padding: 0 8px; color: #d8c69f; background: rgba(35,10,15,.82); border: 1px solid rgba(201,162,75,.4); }
+.efx-launcher .efx-preview-btn:hover { color: #fff0c4; border-color: #e0bb62; box-shadow: 0 0 10px rgba(190,30,50,.25); }
+.efx-launcher .efx-compact-foot .efx-begin { min-width: 0; }
+.efx-launcher .efx-compact-foot .efx-begin span { height: 28px; padding: 0 10px; border-radius: 4px; border: 1px solid #e0bb62; font-size: .68rem; letter-spacing: .14em; background: linear-gradient(180deg,#9d1b2a,#620d17 52%,#3b0710); box-shadow: 0 3px 0 #1a0305, 0 7px 12px rgba(0,0,0,.5), 0 0 14px rgba(205,30,48,.3), inset 0 1px 0 rgba(255,220,170,.38); }
+.efx-launcher .efx-compact-foot .efx-begin:active span { transform: translateY(2px); box-shadow: 0 1px 0 #1a0305, 0 3px 8px rgba(0,0,0,.5); }
+.efx-ui-compact .bg-motes i { animation-duration: 12s; }
+@media (max-width: 600px) {
+  .efx-launcher.application { width: min(440px, 92vw) !important; }
+  .efx-style-row { gap: 4px; }
+  .efx-style-mini { grid-template-columns: 25px 1fr; column-gap: 4px; padding-right: 4px; }
+  .efx-mini-art { width: 25px; height: 25px; }
+  .efx-compact-options { gap: 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .efx-ui-compact *, .efx-ui-compact *::before, .efx-ui-compact *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}

@@ -87,7 +87,7 @@ Hooks.on("getSceneControlButtons", controls => {
 class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "efx-launcher", tag: "form", classes: ["efx-launcher"],
-    position: { width: 660, height: "auto" },
+    position: { width: 440, height: "auto" },
     window: { title: "Encounter FX", icon: "fa-solid fa-fire-flame-curved", resizable: false },
     actions: { preview: EncounterLauncher.#onPreview },
     form: { handler: EncounterLauncher.#onSubmit, closeOnSubmit: true }
