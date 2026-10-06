@@ -1,34 +1,92 @@
-<div class="efx-form">
-  <div class="form-group">
-    <label>ย้ายไปซีน</label>
-    <div class="form-fields">
-      <select name="sceneId">
-        {{#each scenes}}<option value="{{id}}">{{name}}{{#if active}} (Active){{/if}}</option>{{/each}}
-      </select>
+<div class="efx-ui">
+  <div class="efx-bg" aria-hidden="true">
+    <div class="bg-glow"></div>
+    <div class="bg-sigil-wrap">
+      <svg class="bg-sigil" viewBox="0 0 400 400">
+        <defs><path id="efxRing" d="M200,200 m-176,0 a176,176 0 1,1 352,0 a176,176 0 1,1 -352,0"/></defs>
+        <g fill="none" stroke="currentColor">
+          <circle cx="200" cy="200" r="194" stroke-width="1.5"/>
+          <circle cx="200" cy="200" r="158" stroke-width="1" stroke-dasharray="2 6"/>
+          <circle cx="200" cy="200" r="150" stroke-width="1.2"/>
+          <path stroke-width="1.2" d="M350,200 L93.9,306.1 L200,50 L306.1,306.1 L50,200 L306.1,93.9 L200,350 L93.9,93.9 Z"/>
+          <path stroke-width=".8" d="M350,200 L306.1,306.1 L200,350 L93.9,306.1 L50,200 L93.9,93.9 L200,50 L306.1,93.9 Z"/>
+          <circle cx="200" cy="200" r="64" stroke-width="1"/>
+          <circle cx="200" cy="200" r="28" stroke-width="1.4"/>
+        </g>
+        <text fill="currentColor" font-size="12" letter-spacing="5" font-family="serif"><textPath href="#efxRing">MEMENTO MORI · FORTUNA FAVET FORTIBUS · SANGUIS ET FLAMMA · VENI VIDI VICI · ALEA IACTA EST ·</textPath></text>
+      </svg>
     </div>
+    <div class="bg-motes"></div>
+    <div class="bg-vignette"></div>
   </div>
 
-  <fieldset>
-    <legend>ผู้เล่นที่ดึงเข้า Combat</legend>
-    <div class="efx-actors">
-      {{#each actors}}
-      <label class="efx-actor">
-        <input type="checkbox" name="actor" value="{{id}}" {{#if checked}}checked{{/if}}>
-        <img src="{{img}}" alt="">
-        <span>{{name}}</span>
+  <header class="efx-hero">
+    <span class="candle"><i></i></span>
+    <div class="titleblock">
+      <h1>Encounter</h1>
+      <p>Choose the stage, gather the fighters, and let fate roll.</p>
+    </div>
+    <span class="candle"><i></i></span>
+  </header>
+
+  <section class="efx-sec">
+    <h3><b>I</b> Destination</h3>
+    <input type="search" class="efx-search" placeholder="Search scenes..." autocomplete="off">
+    <div class="efx-grid scenes">
+      {{#each scenes}}
+      <label class="efx-card efx-scene" data-name="{{key}}">
+        <input type="radio" name="sceneId" value="{{id}}" required>
+        <span class="thumb">{{#if thumb}}<img src="{{thumb}}" alt="">{{else}}<em class="noimg"></em>{{/if}}</span>
+        <span class="lbl">{{name}}</span>
+        {{#if active}}<span class="badge">Active</span>{{/if}}
       </label>
       {{else}}
-      <p class="notes">ไม่พบตัวละครผู้เล่น (type: character ที่มีเจ้าของ)</p>
+      <p class="empty">No scenes found.</p>
       {{/each}}
     </div>
-  </fieldset>
+  </section>
 
-  <div class="form-group">
-    <label>เพิ่มศัตรู (Hostile) ในซีน</label>
-    <div class="form-fields"><input type="checkbox" name="hostile" checked></div>
-  </div>
+  <section class="efx-sec">
+    <h3><b>II</b> The Party</h3>
+    <div class="efx-grid actors">
+      {{#each actors}}
+      <label class="efx-card efx-actor">
+        <input type="checkbox" name="actor" value="{{id}}" {{#if checked}}checked{{/if}}>
+        <img src="{{img}}" alt="">
+        <span class="lbl">{{name}}</span>
+        <span class="tick">✦</span>
+      </label>
+      {{else}}
+      <p class="empty">No player characters found (type "character" with a player owner).</p>
+      {{/each}}
+    </div>
+  </section>
 
-  <footer class="form-footer">
-    <button type="submit"><i class="fa-solid fa-fire"></i> เริ่ม Encounter</button>
+  <section class="efx-sec">
+    <h3><b>III</b> Style</h3>
+    <div class="efx-grid styles">
+      {{#each styles}}
+      <label class="efx-card efx-style">
+        <input type="radio" name="style" value="{{id}}" {{#if checked}}checked{{/if}}>
+        <span class="pv pv-{{id}}"><i></i><i></i></span>
+        <span class="lbl">{{label}}</span>
+        <span class="tag">{{tag}}</span>
+        <span class="desc">{{desc}}</span>
+      </label>
+      {{/each}}
+    </div>
+  </section>
+
+  <section class="efx-sec slim">
+    <label class="efx-toggle">
+      <input type="checkbox" name="hostile" checked>
+      <span class="sw"></span>
+      <span class="txt">Add hostile tokens from the destination scene to the combat</span>
+    </label>
+  </section>
+
+  <footer class="efx-foot">
+    <button type="button" class="efx-ghost" data-action="preview"><i class="fa-solid fa-eye"></i> Preview Style</button>
+    <button type="submit" class="efx-begin"><span><i class="fa-solid fa-fire-flame-curved"></i> Begin Encounter</span></button>
   </footer>
 </div>

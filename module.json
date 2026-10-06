@@ -1,8 +1,8 @@
 {
   "id": "encounter-fx",
   "title": "Encounter FX",
-  "description": "ปุ่มเริ่ม Encounter แบบ Immersive: ย้ายซีนด้วยไฟ CG, ข้อความ ENCOUNTER, d20 3D ของผู้เล่นทอยพร้อมกัน, เริ่ม Combat อัตโนมัติ (dnd5e)",
-  "version": "0.2.0",
+  "description": "Cinematic encounter starter for dnd5e: GM-only launcher with three FX styles (Default fire, Magical, Dark Fantasy), simultaneous 3D d20 initiative rolls, and automatic combat start.",
+  "version": "0.3.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14"

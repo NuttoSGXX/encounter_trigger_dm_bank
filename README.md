@@ -1,31 +1,34 @@
 # Encounter FX
 
-Foundry VTT **V14** + **dnd5e** — ปุ่มเริ่ม Encounter แบบ Immersive: ย้ายซีน, ไฟเผาจอ, แบนเนอร์ ENCOUNTER, d20 3D ทอย Initiative เชื่อมกับ Combat ของ dnd5e
+Cinematic encounter starter for **Foundry VTT V14** + **dnd5e**. GM-only.
 
-## การทำงาน
+1. Click the flame button in the Token controls (GM only).
+2. Pick a destination scene, the party members, and an FX style.
+3. The screen is taken over by the chosen style, everyone is moved to the scene and the tokens are added to the real Combat.
+4. One 3D d20 appears per player. Everyone rolls their own die at the same time; NPCs roll silently.
+5. The initiative order is announced and the combat starts automatically.
 
-1. GM กดปุ่มไฟ → เลือกซีน + ผู้เล่นที่จะเข้า Combat
-2. ไฟ CG ลามเต็มจอ → ย้ายซีน → พิมพ์ `ENCOUNTER` ทีละตัวแล้วกระแทกลงจอ
-3. เต๋า d20 ขึ้นจอ 1 ลูกต่อผู้เล่น ทุกคนกดทอยของตัวเองพร้อมกันได้ (NPC ทอยเงียบๆ หลังบ้าน)
-4. ทอยครบ → สรุปลำดับ Initiative → เริ่ม Combat อัตโนมัติ
+## Styles
 
-ข้อความวิ่ง (Imminent Danger ฯลฯ) แก้ได้ที่ค่าคงที่ `PHRASES` บนสุดของ `scripts/main.js`
+| Style | Description |
+|---|---|
+| **Default** | CG fire sweeps the screen, `ENCOUNTER` is typed then slammed down with a fiery glow. |
+| **Magical** | Streams of colored magic spiral to the center and burst into glittering `ENCOUNTER`. |
+| **Dark Fantasy** | Part the brush, glowing eyes in the mist, the beast lunges, bloody `ENCOUNTER`. |
 
-## ติดตั้ง
+Use **Preview Style** in the launcher to watch a style without changing scenes or touching combat.
 
-1. Foundry → **Add-on Modules** → **Install Module**
-2. วาง Manifest URL ช่อง *Manifest URL* ด้านล่างสุด แล้วกด Install
+## Install
+
+Manifest URL:
 
 ```
 https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/latest/download/module.json
 ```
 
-3. เปิดใช้ในเวิลด์ แล้วกดปุ่มไฟ (Encounter FX) ในแถบ Token Controls (GM เท่านั้น)
+## Customising
 
-## ออกเวอร์ชันใหม่ (สำหรับผู้พัฒนา)
-
-1. Commit / push โค้ดขึ้น `main`
-2. GitHub → **Releases** → **Draft a new release** → ตั้ง tag เช่น `v0.1.0` → **Publish release**
-3. GitHub Actions จะอัปเดต `version`, `manifest`, `download` ใน `module.json` และแนบ `module.json` + `module.zip` ให้เองอัตโนมัติ
-
-> Manifest URL แบบ `latest/download/module.json` จะชี้ไปที่ Release ล่าสุดเสมอ ทำให้ Foundry เช็คอัปเดตได้
+- Scrolling phrases, timings, colors per style: `STYLES` at the top of `scripts/main.js`.
+- Show only players in the initiative summary: `SHOW_NPC_IN_ORDER = false`.
+- Optional stinger sound: Module Settings -> *Encounter stinger sound*.
+- The UI uses Cinzel / IM Fell via Google Fonts when online and falls back to system serif fonts offline.
