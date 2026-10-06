@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0 — Still Plates
+- New optional **still plates**: drop `magical.(webp|jpg|png)` / `dark-fantasy.(webp|jpg|png)` into `assets/plates/` and that style animates your artwork with code (push-in, fog, convergence/burst reveal, lunge zoom, blood, typography). Priority: video plate > still plate > procedural FX.
+- Clients are told which asset to use by the GM, so everyone sees the same cinematic.
+- Docs: `docs/PLATE_PROMPTS.md` (image prompts + requirements), `assets/README.md`.
+
 ## 0.6.0 — Media Plates + Drag Fix
 - **Launcher dragging rebuilt.** Dragging is now handled once on the window element (survives re-renders), uses window-level pointer listeners, takes over the native header drag, and falls back to direct left/top positioning if `setPosition` fails. Drag from the header or any non-interactive area.
 - **Media plates (optional).** Put `default.webm`, `magical.webm` or `dark-fantasy.webm` in `assets/video/` and that style plays your pre-rendered video full-screen instead of the procedural FX. ENCOUNTER typography, flavor bands, 3D d20 initiative and combat stay code-driven. If a file is missing the style falls back to the procedural FX automatically.

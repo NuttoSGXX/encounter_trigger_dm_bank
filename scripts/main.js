@@ -59,9 +59,35 @@ async function mediaFor(style) {
   }
   return mediaCache.get(style);
 }
+
+/* Still plates: your own artwork (e.g. made in ChatGPT) animated by code.
+   Drop assets/plates/magical.(webp|jpg|png) and/or dark-fantasy.(webp|jpg|png).
+   Priority per style: video plate > still plate > procedural FX. */
+const PLATES = {
+  magic: { name: "magical",      t: { switch: 2700, title: 2900, leave: 6400, end: 7600, dice: 6700 } },
+  dark:  { name: "dark-fantasy", focus: [0.6, 0.46], t: { switch: 3900, title: 4100, leave: 7200, end: 8400, dice: 7500 } }
+};
+const plateCache = new Map();
+async function plateFor(style) {
+  const P = PLATES[style]; if (!P) return null;
+  if (!plateCache.has(style)) plateCache.set(style, (async () => {
+    for (const ext of ["webp", "jpg", "jpeg", "png"]) {
+      const src = `modules/${ID}/assets/plates/${P.name}.${ext}`;
+      if (await fetch(src, { method: "HEAD" }).then(r => r.ok).catch(() => false)) return { type: "plate", src, ...P };
+    }
+    return null;
+  })());
+  return plateCache.get(style);
+}
+/** What should play for this style: a video plate, a still plate, or null (procedural). */
+async function assetFor(style) {
+  const v = await mediaFor(style); if (v) return { type: "video", src: v.src, t: v.t };
+  return (await plateFor(style)) ?? null;
+}
+
 /** Warm the browser cache so the first play does not stall. */
 async function preloadMedia() {
-  for (const style of Object.keys(MEDIA)) { const m = await mediaFor(style); if (m) fetch(m.src).then(r => r.blob()).catch(() => {}); }
+  for (const style of Object.keys(MEDIA)) { const m = await mediaFor(style); if (m) fetch(m.src).then(r => r.blob()).catch(() => {}); const pl = await plateFor(style); if (pl) { const im = new Image(); im.src = pl.src; } }
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -142,7 +168,7 @@ class EncounterLauncher extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static #onPreview(event, target) {
     const style = this.element.querySelector('input[name="style"]:checked')?.value ?? "fire";
-    mediaFor(style).then(m => onMessage({ action: "intro", style, media: !!m }));   // local only: no scene change, no combat
+    assetFor(style).then(a => onMessage({ action: "intro", style, asset: a?.type ?? null, src: a?.src ?? null }));   // local only: no scene change, no combat
   }
 
   static async #onSubmit(event, form, formData) {
@@ -212,11 +238,11 @@ async function launch({ sceneId, actorIds = [], hostile = true, style = "fire" }
   if (!STYLES[style]) style = "fire";
   const scene = game.scenes.get(sceneId);
   if (!scene) return ui.notifications.error("Encounter FX: scene not found.");
-  const media = await mediaFor(style);
-  const T = media ? media.t : STYLES[style].t, t0 = Date.now();
+  const asset = await assetFor(style);
+  const T = asset ? asset.t : STYLES[style].t, t0 = Date.now();
   GM.pcs = new Map(); GM.rolled = new Set(); GM.finishing = false; GM.combatId = null; GM.style = style;
 
-  broadcast({ action: "intro", style, media: !!media });
+  broadcast({ action: "intro", style, asset: asset?.type ?? null, src: asset?.src ?? null });
   await sleep(T.switch);
 
   // 1) Move everyone to the target scene while the screen is covered
@@ -605,9 +631,10 @@ async function finishIntro(ctx, onLeave) {
 }
 const own = (fx, ctx) => { fx.owner = ctx.el; return track(fx); };
 
-async function playIntro({ style = "fire", media = false } = {}) {
+async function playIntro({ style = "fire", media = false, asset = null, src = null } = {}) {
   if (!STYLES[style]) style = "fire";
-  if (media && MEDIA[style]) return playMediaIntro(style);
+  if ((asset === "video" || media) && MEDIA[style]) return playMediaIntro(style);
+  if (asset === "plate" && PLATES[style] && src) return playPlateIntro(style, src);
   closeAll();
   const el = document.createElement("div");
   el.className = `efx-intro st-${style}`;
@@ -649,6 +676,64 @@ async function playMediaIntro(style) {
   if (!await ctx.until(M.t.title + 1500)) return;
   title.classList.add("glow");
   await finishIntro(ctx, () => video.pause());
+}
+
+/** Still plate: artwork + code. Magic = convergence then reveal; Dark = slow push-in, lunge, black, blood, title. */
+async function playPlateIntro(style, src) {
+  const P = PLATES[style], S = STYLES[style];
+  closeAll();
+  const el = document.createElement("div");
+  el.className = `efx-intro st-${style} efx-plate-intro`;
+  const [fx_, fy_] = P.focus ?? [0.5, 0.5];
+  el.style.setProperty("--fx", `${fx_ * 100}%`); el.style.setProperty("--fy", `${fy_ * 100}%`);
+  el.innerHTML = `
+    <div class="efx-dim"></div>
+    <div class="efx-plate" style="background-image:url('${src}')"></div>
+    <div class="efx-fogs"><i></i><i></i></div>
+    ${style === "magic" ? '<canvas class="efx-magic"></canvas>' : ""}
+    <div class="efx-vignette"></div><div class="efx-titleshade"></div>
+    <div class="efx-shaker">${bannerHTML(style)}<div class="efx-ring"></div></div>
+    <div class="efx-flash"></div><div class="efx-blackout"></div><canvas class="efx-sparks"></canvas><div class="efx-redflash"></div>`;
+  root().appendChild(el);
+  for (const tr of el.querySelectorAll(".efx-track")) tr.style.setProperty("--dur", `${Math.max(12, tr.scrollWidth / 2 / 160)}s`);
+  play(game.settings.get(ID, "sound"));
+  const ctx = makeCtx(el, style); ctx.S = { ...S, t: P.t };
+  const sparks = own(new Sparks(el.querySelector(".efx-sparks")), ctx);
+  const title = el.querySelector(".efx-title"), chars = [...title.querySelectorAll(".ch")], mx = innerWidth / 2;
+  const lettersIn = (stagger, irregular) => chars.forEach((ch, i) => {
+    const [x] = centerOf(ch);
+    ch.style.setProperty("--dx", `${(mx - x).toFixed(0)}px`); ch.style.setProperty("--rot", `${rand(-40, 40).toFixed(0)}deg`);
+    if (irregular) { ch.style.setProperty("--d", `${rand(0, .45).toFixed(2)}s`); ch.style.setProperty("--dy", `${rand(-.09, .12).toFixed(2)}em`); }
+    ch.style.animationDelay = `${i * stagger}ms`; ch.classList.add("on");
+  });
+  void el.offsetWidth; el.classList.add("on");
+
+  if (style === "magic") {
+    const fx = own(new MagicFX(el.querySelector(".efx-magic")), ctx); fx.start();          // orbs + filaments collapse into the core
+    if (!await ctx.until(2600)) return;
+    el.classList.add("impact", "reveal");                                                  // burst: the artwork is revealed
+    fx.burst(innerWidth / 2, innerHeight / 2, 220, 760);
+    if (!await ctx.until(P.t.title)) return; lettersIn(55, false);
+    fx.rects = [...el.querySelectorAll(".efx-band, .efx-title")].map(n => { const r = n.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+    fx.sparkRate = 3;
+    if (!await ctx.until(P.t.title + 800)) return; el.classList.add("bands");
+    if (!await ctx.until(P.t.title + 1700)) return; title.classList.add("glow");
+    await finishIntro(ctx, () => { fx.sparkRate = 0; });
+  } else {
+    const blood = ["120,0,0", "170,10,10", "80,0,0"];
+    if (!await ctx.until(3400)) return; el.classList.add("lunge");                          // it jumps at the camera
+    if (!await ctx.until(3750)) return; el.classList.add("black");                          // cut to black (scene swaps ~3900)
+    if (!await ctx.until(3950)) return; el.classList.add("splat");
+    sparks.burst(innerWidth * .5, innerHeight * .5, { n: 120, speed: 950, life: [.6, 1.5], size: [3, 7], gravity: 950, colors: blood, add: false });
+    sparks.burst(innerWidth * .35, innerHeight * .62, { n: 40, speed: 600, life: [.6, 1.3], size: [2, 5], gravity: 900, colors: blood, add: false, angle: -.8, spread: 1.4 });
+    sparks.burst(innerWidth * .66, innerHeight * .58, { n: 40, speed: 600, life: [.6, 1.3], size: [2, 5], gravity: 900, colors: blood, add: false, angle: -2.3, spread: 1.4 });
+    if (!await ctx.until(P.t.title)) return; el.classList.remove("black", "lunge"); el.classList.add("backdrop");
+    lettersIn(0, true); title.classList.add("slam"); el.classList.add("bands", "impact");
+    const [cx, cy] = centerOf(title);
+    sparks.burst(cx, cy, { n: 70, speed: 700, life: [.6, 1.4], size: [3, 7], gravity: 1000, colors: blood, add: false });
+    if (!await ctx.until(P.t.title + 400)) return; startDrips(title, ctx); title.classList.add("glow");
+    await finishIntro(ctx);
+  }
 }
 
 const centerOf = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };

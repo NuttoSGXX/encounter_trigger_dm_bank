@@ -602,3 +602,33 @@
 .efx-media-intro .efx-shaker { z-index: 2; }
 .efx-launcher.efx-dragging, .efx-launcher.efx-dragging .window-header { cursor: grabbing !important; }
 .efx-launcher .window-header, .efx-launcher .efx-compact-head { cursor: grab; }
+
+/* =====================================================================
+   v0.7 STILL PLATES (artwork animated by code)
+   ===================================================================== */
+.efx-plate { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transform-origin: var(--fx, 50%) var(--fy, 50%); will-change: transform, opacity, filter; }
+.efx-plate-intro .efx-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.7) 100%); }
+.efx-titleshade { position: absolute; left: 0; right: 0; top: 50%; height: 46vh; margin-top: -23vh; pointer-events: none; opacity: 0; transition: opacity 1s; background: radial-gradient(ellipse at center, rgba(0,0,0,.62), transparent 70%); }
+.efx-plate-intro.bands .efx-titleshade { opacity: 1; }
+.efx-fogs i { position: absolute; left: -30%; width: 160%; height: 40%; pointer-events: none; opacity: 0; filter: blur(22px);
+  background: radial-gradient(ellipse at 30% 50%, rgba(190,200,215,.28), transparent 60%); animation: efx-fog1 20s ease-in-out infinite alternate; }
+.efx-fogs i:nth-child(1) { bottom: 0; } .efx-fogs i:nth-child(2) { bottom: 18%; animation-duration: 28s; animation-direction: alternate-reverse; }
+.st-dark.efx-plate-intro.on .efx-fogs i { opacity: 1; transition: opacity 2s; }
+@keyframes efx-push { from { transform: scale(1.02); } to { transform: scale(1.14); } }
+
+/* Magical plate: dark convergence first, then the artwork blooms in. */
+.st-magic.efx-plate-intro .efx-dim { opacity: 1; background: #050210; }
+.st-magic.efx-plate-intro.reveal .efx-plate { animation: efx-plate-reveal 1.1s ease-out forwards, efx-push 8s linear forwards; }
+@keyframes efx-plate-reveal { from { opacity: 0; filter: brightness(3.2) saturate(1.5) blur(6px); } to { opacity: 1; filter: none; } }
+.st-magic.efx-plate-intro .efx-magic { transition: opacity 1.2s; }
+.st-magic.efx-plate-intro.reveal .efx-magic { opacity: .8; mix-blend-mode: screen; }
+.st-magic.efx-plate-intro.leave .efx-plate, .st-magic.efx-plate-intro.leave .efx-magic { opacity: 0 !important; transition: opacity 1.2s; animation: none; }
+
+/* Dark plate: slow push toward the creature, lunge, black, then a dim backdrop for the title. */
+.st-dark.efx-plate-intro .efx-dim { opacity: 1; background: #020203; }
+.st-dark.efx-plate-intro.on .efx-plate { opacity: 1; transition: opacity 2.2s ease; filter: brightness(.62) contrast(1.12) saturate(.75); animation: efx-push 9s linear forwards; }
+.st-dark.efx-plate-intro.lunge .efx-plate { animation: efx-plunge .4s cubic-bezier(.7, 0, 1, .55) forwards; }
+@keyframes efx-plunge { from { transform: scale(1.1); filter: brightness(.7) blur(0); } to { transform: scale(3.6); filter: brightness(.5) blur(7px); } }
+.st-dark.efx-plate-intro.backdrop .efx-plate { animation: none; transform: scale(1.12); filter: brightness(.26) blur(3px) saturate(.5); transition: filter 1.5s; }
+.st-dark.efx-plate-intro.leave .efx-plate, .st-dark.efx-plate-intro.leave .efx-fogs { opacity: 0 !important; transition: opacity 1.2s; }
+.st-dark.efx-plate-intro.splat .efx-redflash { animation: efx-flash .7s ease-out; }
