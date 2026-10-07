@@ -49,5 +49,54 @@ All images are transparent WebP, cut from the original generated sheets (glow on
 
 Element budget: 6 orbs + 6 ribbons + 1 core + 2 rings + 1 burst + 16 burst sparkles (removed after ~1.6 s) + 12 twinkles + 2 title images. All animation is transform/opacity (compositor friendly).
 
+## Dark Fantasy asset pack (`assets/dark/`, 1235 KB total)
+
+| File | Asset | Size | Weight |
+|---|---|---|---|
+| `dark-background.webp` | dark-background | 1600x900 | 64 KB |
+| `foliage-left.webp` | foliage-left | 666x881 | 166 KB |
+| `foliage-right.webp` | foliage-right | 568x877 | 138 KB |
+| `foliage-top.webp` | foliage-top | 904x344 | 91 KB |
+| `beast-lurk.webp` | beast-lurk | 783x716 | 143 KB |
+| `beast-lunge.webp` | beast-lunge | 540x864 | 153 KB |
+| `beast-eyes.webp` | beast-eyes | 1400x463 | 239 KB |
+| `blood-splash.webp` | blood-splash | 476x423 | 51 KB |
+| `blood-droplets.webp` | blood-droplets | 573x287 | 15 KB |
+| `blood-drop.webp` | blood-drop | 29x29 | 1 KB |
+| `blood-drip-1.webp` | blood-drip-1 | 32x316 | 4 KB |
+| `blood-drip-2.webp` | blood-drip-2 | 31x267 | 3 KB |
+| `blood-drip-3.webp` | blood-drip-3 | 32x307 | 4 KB |
+| `blood-drip-4.webp` | blood-drip-4 | 34x236 | 3 KB |
+| `encounter-dark.webp` | encounter-dark | 1541x313 | 72 KB |
+| `fog-back.webp` | fog-back | 2048x360 | 47 KB |
+| `fog-front.webp` | fog-front | 2048x360 | 41 KB |
+| `pack.json` | manifest (foliage placement, title baseline and letter positions, eye spacing) | | 3 KB |
+
+Cut from the generated sheets with `tools/extract_dark_pack.py` (white / green / black keying with despill). The two fog layers are generated procedurally by the same tool (seamless horizontal tiling). Sources: background plate, foliage frame, beast sheet, eyes, blood sheet, metal title.
+
+## Dark Fantasy timeline (ms from start)
+
+| Time | What happens |
+|---|---|
+| 0 | Moonlit swamp plate fades in with a slow push-in. Vignette. |
+| 500 | Two fog layers fade in and drift. |
+| 1000 | The foliage (scaled up from the screen edges, so the center is closed) trembles. |
+| 1500 | The foliage parts (1.15 s). |
+| 2000 | Two faint amber eyes appear in the dark. |
+| 2500 | The beast is half-seen behind the fog and breathes. |
+| 3000 | Tension: the eyes burn brighter and hold. |
+| 3200 | LUNGE (0.22 s): the beast swaps to its lunge pose and rushes the camera from the head, with motion blur; the eyes flare; the frame shakes. |
+| 3480 | IMPACT: blackout. Foliage, beast, eyes and front fog are removed; the plate is dimmed. A blood splash and a droplet scatter appear on the darkness (restrained, fading by about 4.5 s). |
+| 3560 | GM client swaps the scene (screen is black). |
+| 3950 | Darkness gives way. |
+| 4000 | ENCOUNTER (worn metal with bleeding edges) fades in from a slight blur. |
+| 4400 | Four extra blood drips grow under selected letters (2.8 s each, staggered); droplets break free and fall. |
+| 4700 | Running-text bands appear. |
+| 7300 | Fade out (1.2 s). |
+| 7600 | Initiative dice appear. |
+| 8500 | Overlay removed, animations cancelled, DOM cleaned. |
+
+Element budget: 1 plate + 2 fog + 2 beasts + 1 eyes + 3 foliage + 1 vignette during the first act; then 2 blood layers, 1 title, 4 drips and up to 3 droplets. All animation is transform/opacity/clip-path; only the lunge beast uses a short blur filter.
+
 ## Tuning
-Cues and counts are at the top of `playPackIntro` and in `PACKS` in `scripts/main.js`.
+Cues are at the top of `playPackIntro` (Magical) and `playDarkPack` (Dark Fantasy), and in `PACKS` in `scripts/main.js`. Head alignment (`HEADS`, `HEAD`) is in `playDarkPack`.

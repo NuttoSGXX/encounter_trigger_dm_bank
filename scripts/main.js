@@ -82,7 +82,8 @@ async function plateFor(style) {
 /* Asset packs: layered, pre-rendered art (orbs, ribbons, core, title...) driven by a timeline director.
    Priority per style: video plate > asset pack > still plate > procedural FX. Missing files never break the encounter. */
 const PACKS = {
-  magic: { dir: `modules/${ID}/assets/magical`, t: { switch: 2850, leave: 6700, end: 7900, dice: 7000 } }
+  magic: { dir: `modules/${ID}/assets/magical`, critical: ["encounter-magical", "arcane-core"], t: { switch: 2850, leave: 6700, end: 7900, dice: 7000 } },
+  dark:  { dir: `modules/${ID}/assets/dark`, critical: ["encounter-dark", "dark-background"], t: { switch: 3560, leave: 7300, end: 8500, dice: 7600 } }
 };
 const packCache = new Map();
 async function packFor(style) {
@@ -91,7 +92,7 @@ async function packFor(style) {
     try {
       const r = await fetch(`${P.dir}/pack.json`); if (!r.ok) return null;
       const manifest = await r.json();
-      return manifest?.assets?.["encounter-magical"] && manifest.assets["arcane-core"] ? { type: "pack", ...P, manifest } : null;
+      return P.critical.every(n => manifest?.assets?.[n]) ? { type: "pack", ...P, manifest } : null;
     } catch (e) { return null; }
   })());
   return packCache.get(style);
@@ -814,6 +815,7 @@ async function playPlateIntro(style, src) {
 
 /** Magical asset pack director: orbs + ribbons converge on an arcane core, burst, title is revealed. */
 async function playPackIntro(style) {
+  if (style === "dark") return playDarkPack(style);
   const K = await packFor(style);
   if (!K) return playIntro({ style });                                   // pack vanished: procedural fallback
   closeAll();
@@ -933,6 +935,135 @@ async function playPackIntro(style) {
     await finishIntro(ctx);
   } catch (err) {
     console.error(`${ID} | pack intro failed`, err); closeAll();
+  }
+}
+
+/** Dark Fantasy asset pack director: moonlit swamp, foliage parts, eyes, beast, lunge, black, blood, bleeding title. */
+async function playDarkPack(style) {
+  const K = await packFor(style);
+  if (!K) return playIntro({ style });
+  closeAll();
+  const S = STYLES[style], A = K.manifest.assets;
+  const el = document.createElement("div");
+  el.className = `efx-intro st-${style} efx-pack-intro efx-dark-pack`;
+  el.innerHTML = `<div class="efx-dim"></div><div class="efx-pack-stage"></div><div class="efx-blackout"></div><div class="efx-pack-stage d-top"></div><div class="efx-flash"></div><div class="efx-shaker">${bannerHTML(style)}</div>`;
+  root().appendChild(el);
+  for (const tr of el.querySelectorAll(".efx-track")) tr.style.setProperty("--dur", `${Math.max(12, tr.scrollWidth / 2 / 160)}s`);
+  play(game.settings.get(ID, "sound"));
+  const ctx = makeCtx(el, style); ctx.S = { ...S, t: K.t };
+  void el.offsetWidth; el.classList.add("on");
+
+  const loaded = {};
+  await Promise.all(Object.keys(A).map(async n => { loaded[n] = await loadImg(`${K.dir}/${A[n].file}`); }));
+  if (!ctx.alive()) return;
+  if (!K.critical.every(n => loaded[n])) { console.warn(`${ID} | dark pack incomplete, using procedural FX`); return playIntro({ style }); }
+  const src = n => `${K.dir}/${A[n].file}`, has = n => !!loaded[n];
+
+  try {
+    const stage = el.querySelector(".efx-pack-stage"), top = el.querySelector(".d-top");
+    const W = innerWidth, H = innerHeight, sc = Math.max(W / 16, H / 9), FW = 16 * sc, FH = 9 * sc, calmMode = calm();
+    const frame = document.createElement("div"); frame.className = "d-frame"; frame.style.cssText = `left:${(W - FW) / 2}px;top:${(H - FH) / 2}px;width:${FW}px;height:${FH}px;`; stage.appendChild(frame);
+    const anims = [], anim = (node, kf, opt) => { const a = node.animate(kf, { fill: "forwards", ...opt }); anims.push(a); return a; };
+    const mk = (n, css = "", cls = "", parent = frame) => { const im = document.createElement("img"); im.src = src(n); im.alt = ""; im.draggable = false; im.className = `p-img ${cls}`; im.style.cssText = css; parent.appendChild(im); return im; };
+    const HEAD = { x: .5 * FW, y: .53 * FH };                           // where the beast's face is
+    const killers = [];
+
+    // --- BACKGROUND: moonlit swamp, slow push-in, vignette
+    const bg = mk("dark-background", `left:0;top:0;width:${FW}px;height:${FH}px;opacity:0;filter:brightness(.8);`);
+    anim(bg, [{ opacity: 0, transform: "scale(1)" }, { offset: .12, opacity: 1 }, { opacity: 1, transform: "scale(1.09)" }], { duration: 7000, easing: "linear" });
+    // --- FOG (back): drifting
+    const fogLayer = (n, y, h, op, dur) => {
+      if (!has(n)) return null;
+      const f = document.createElement("div"); f.className = "d-fog"; f.style.cssText = `top:${y * FH}px;height:${h * FH}px;background-image:url(${src(n)});opacity:0;`; frame.appendChild(f);
+      anim(f, [{ opacity: 0 }, { opacity: op }], { delay: 500, duration: 1500 });
+      if (!calmMode) anim(f, [{ transform: "translateX(0)" }, { transform: "translateX(-50%)" }], { duration: dur, iterations: Infinity, easing: "linear", fill: "none" });
+      return f;
+    };
+    const fogBack = fogLayer("fog-back", .38, .5, .55, 110000);
+
+    // --- BEAST (lurking) + EYES, aligned on the head anchor
+    const HEADS = { "beast-lurk": { bw: .46, x: .635, y: .47 }, "beast-lunge": { bw: .30, x: .46, y: .37 } };
+    const beast = n => {
+      if (!has(n)) return null; const h = HEADS[n], a = A[n], bw = h.bw * FW, bh = bw * a.h / a.w;
+      return mk(n, `left:${HEAD.x - h.x * bw}px;top:${HEAD.y - h.y * bh}px;width:${bw}px;height:${bh}px;transform-origin:${h.x * 100}% ${h.y * 100}%;opacity:0;`);
+    };
+    const lurk = beast("beast-lurk");
+    const lunge = beast("beast-lunge");
+    let eyes = null;
+    if (has("beast-eyes")) {
+      const a = A["beast-eyes"], ew = (FW * 0.078) / a.spacing, eh = ew * a.h / a.w;
+      eyes = mk("beast-eyes", `left:${HEAD.x - a.cx * ew}px;top:${HEAD.y - a.cy * eh}px;width:${ew}px;height:${eh}px;transform-origin:${a.cx * 100}% ${a.cy * 100}%;opacity:0;`, "p-screen");
+    }
+    const fogFront = fogLayer("fog-front", .56, .5, .5, 80000);
+
+    // --- FOLIAGE (left / right / top) starts closed over the center
+    const fol = {};
+    for (const [k, n] of [["l", "foliage-left"], ["r", "foliage-right"], ["t", "foliage-top"]]) if (has(n)) {
+      const a = A[n], w = a.fw * FW, h = a.fh * FH;
+      fol[k] = mk(n, `left:${a.fx * FW}px;top:${a.fy * FH}px;width:${w}px;height:${h}px;transform-origin:${k === "l" ? "0% 100%" : k === "r" ? "100% 100%" : "50% 0%"};`, "d-foliage");
+    }
+    // Pieces are edge-anchored (their outer edges are cut by the frame), so "closed" = scaled up from the screen edge, not slid inward.
+    const closed = { l: "scale(1.9)", r: "scale(1.9)", t: "scale(1.5)" };
+    const open = { l: `translateX(${-.03 * FW}px) scale(1.04)`, r: `translateX(${.03 * FW}px) scale(1.04)`, t: `translateY(${-.05 * FH}px) scale(1.02)` };
+    Object.entries(fol).forEach(([k, n]) => { n.style.transform = closed[k]; });
+    const vig = document.createElement("div"); vig.className = "d-vignette"; stage.appendChild(vig);
+
+    // --- timeline ---------------------------------------------------------
+    if (!await ctx.until(1000)) return;                                  // foliage trembles
+    if (!calmMode) Object.entries(fol).forEach(([k, n]) => anim(n, [{ transform: closed[k] }, { transform: closed[k] + " translate(5px,2px)" }, { transform: closed[k] + " translate(-4px,0)" }, { transform: closed[k] + " translate(3px,-2px)" }, { transform: closed[k] }], { duration: 520, easing: "ease-in-out" }));
+    if (!await ctx.until(1500)) return;                                  // foliage parts from the center
+    Object.entries(fol).forEach(([k, n]) => anim(n, [{ transform: closed[k] }, { transform: open[k] }], { duration: 1150, easing: "cubic-bezier(.5,0,.2,1)" }));
+    if (!await ctx.until(2000)) return;                                  // two faint eyes
+    if (eyes) anim(eyes, [{ opacity: 0 }, { opacity: .5 }], { duration: 800, easing: "ease-out" });
+    if (!await ctx.until(2500)) return;                                  // the beast, half seen
+    if (lurk) { anim(lurk, [{ opacity: 0 }, { opacity: .92 }], { duration: 900, easing: "ease-out" }); if (!calmMode) anim(lurk, [{ transform: "scale(1)" }, { transform: "scale(1.014)" }], { duration: 2400, iterations: Infinity, direction: "alternate", easing: "ease-in-out", fill: "none" }); }
+    if (!await ctx.until(3000)) return;                                  // tension: the eyes burn brighter and hold
+    if (eyes) anim(eyes, [{ opacity: .5 }, { opacity: .95 }], { duration: 450, easing: "ease-out" });
+
+    if (!await ctx.until(3200)) return;                                  // LUNGE
+    const ease = "cubic-bezier(.65,0,1,.5)";
+    if (lurk) anim(lurk, [{ opacity: .92 }, { opacity: 0 }], { duration: 120 });
+    if (lunge) anim(lunge, [{ opacity: 0, transform: "scale(.8)", filter: "blur(0px)" }, { offset: .2, opacity: 1 }, { opacity: 1, transform: "scale(3.6)", filter: "blur(10px)" }], { duration: 220, easing: ease });
+    if (eyes) anim(eyes, [{ opacity: .95, transform: "scale(1)" }, { opacity: 1, transform: "scale(7)" }], { duration: 220, easing: ease });
+    if (!calmMode) anim(frame, [{ transform: "translate(0,0)" }, { transform: "translate(-8px,5px)" }, { transform: "translate(7px,-6px)" }, { transform: "translate(-5px,4px)" }, { transform: "translate(0,0)" }], { duration: 220 });
+
+    if (!await ctx.until(3480)) return;                                  // IMPACT: blackout
+    el.classList.add("black");
+    [...Object.values(fol), lurk, lunge, eyes, fogFront].forEach(n => n?.remove());
+    anim(bg, [{ filter: "brightness(.8) blur(0px)" }, { filter: "brightness(.22) blur(3px)" }], { duration: 10 });
+    if (has("blood-splash")) {                                           // restrained blood on the darkness
+      const sw = FW * .40, sh = sw * A["blood-splash"].h / A["blood-splash"].w, ox = (W - FW) / 2, oy = (H - FH) / 2;
+      const sp = mk("blood-splash", `left:${ox + FW * .30 - sw / 2}px;top:${oy + FH * .46 - sh / 2}px;width:${sw}px;height:${sh}px;opacity:0;`, "", top);
+      anim(sp, [{ opacity: 1, transform: "scale(.7) rotate(-8deg)" }, { offset: .35, opacity: 1, transform: "scale(1) rotate(-8deg)" }, { opacity: 0, transform: "scale(1.06) rotate(-8deg)" }], { duration: 1050, easing: "ease-out" });
+    }
+    if (has("blood-droplets")) {
+      const dw = FW * .34, dh = dw * A["blood-droplets"].h / A["blood-droplets"].w, ox = (W - FW) / 2, oy = (H - FH) / 2;
+      const dr = mk("blood-droplets", `left:${ox + FW * .64 - dw / 2}px;top:${oy + FH * .38 - dh / 2}px;width:${dw}px;height:${dh}px;opacity:0;`, "", top);
+      anim(dr, [{ opacity: 1, transform: "translateY(0)" }, { opacity: 1 }, { opacity: 0, transform: `translateY(${FH * .05}px)` }], { duration: 1250, easing: "ease-in" });
+    }
+
+    if (!await ctx.until(3950)) return; el.classList.remove("black");    // darkness gives way
+    if (!await ctx.until(4000)) return;                                  // TITLE
+    const title = el.querySelector(".efx-title"); title.textContent = "";
+    const timg = document.createElement("img"); timg.src = src("encounter-dark"); timg.className = "efx-title-img"; timg.alt = "ENCOUNTER"; timg.draggable = false; timg.style.filter = "none"; title.appendChild(timg);
+    anim(timg, [{ opacity: 0, transform: "scale(1.12)", filter: "blur(10px)" }, { offset: .6, opacity: 1, filter: "blur(1px)" }, { opacity: 1, transform: "scale(1)", filter: "blur(0px)" }], { duration: 1000, easing: "cubic-bezier(.2,.8,.2,1)" });
+
+    if (!await ctx.until(4400)) return;                                  // blood begins to run from the lettering
+    const tr = timg.getBoundingClientRect(), T = A["encounter-dark"], lx = i => tr.left + T.letters[i] * tr.width, ly = tr.top + T.base * tr.height - 4;
+    [[1, "blood-drip-1", .8, 0], [3, "blood-drip-3", .62, 500], [5, "blood-drip-2", .7, 900], [7, "blood-drip-4", .5, 1300]].forEach(([li, n, hk, delay]) => {
+      if (!has(n)) return;
+      const a = A[n], dh = tr.height * hk, dw = dh * a.w / a.h;
+      const im = mk(n, `left:${lx(li) - dw / 2}px;top:${ly}px;width:${dw}px;height:${dh}px;clip-path:inset(0 0 100% 0);`, "", top);
+      anim(im, [{ clipPath: "inset(0 0 100% 0)" }, { offset: .75, clipPath: "inset(0 0 22% 0)" }, { clipPath: "inset(0 0 0% 0)" }], { delay, duration: 2800, easing: "cubic-bezier(.35,0,.6,1)" });
+      if (has("blood-drop") && li !== 5) {                                // a droplet breaks free and falls
+        const dd = mk("blood-drop", `left:${lx(li) - 9}px;top:${ly + dh - 6}px;width:18px;height:auto;opacity:0;`, "", top);
+        anim(dd, [{ opacity: 0, transform: "translateY(0)" }, { offset: .12, opacity: 1 }, { offset: .8, opacity: 1 }, { opacity: 0, transform: `translateY(${H * .3}px)` }], { delay: delay + 2400, duration: 1300, easing: "cubic-bezier(.5,0,1,.5)" });
+      }
+    });
+    if (!await ctx.until(4700)) return; el.classList.add("bands");        // running text
+    await finishIntro(ctx);
+  } catch (err) {
+    console.error(`${ID} | dark pack failed`, err); closeAll();
   }
 }
 

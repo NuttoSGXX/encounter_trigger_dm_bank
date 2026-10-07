@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "dir": "assets/dark",
+  "frame": [
+    1672,
+    941
+  ],
+  "assets": {
+    "dark-background": {
+      "file": "dark-background.webp",
+      "w": 1600,
+      "h": 900
+    },
+    "foliage-left": {
+      "file": "foliage-left.webp",
+      "w": 666,
+      "h": 881,
+      "fx": 0.0,
+      "fy": 0.0627659574468085,
+      "fw": 0.39832535885167464,
+      "fh": 0.9372340425531915
+    },
+    "foliage-right": {
+      "file": "foliage-right.webp",
+      "w": 568,
+      "h": 877,
+      "fx": 0.6602870813397129,
+      "fy": 0.06702127659574468,
+      "fw": 0.3397129186602871,
+      "fh": 0.9329787234042554
+    },
+    "foliage-top": {
+      "file": "foliage-top.webp",
+      "w": 904,
+      "h": 344,
+      "fx": 0.17045454545454544,
+      "fy": 0.0,
+      "fw": 0.5406698564593302,
+      "fh": 0.3659574468085106
+    },
+    "beast-lurk": {
+      "file": "beast-lurk.webp",
+      "w": 783,
+      "h": 716,
+      "sx": 32,
+      "sy": 153,
+      "sw": 783,
+      "sh": 716
+    },
+    "beast-lunge": {
+      "file": "beast-lunge.webp",
+      "w": 540,
+      "h": 864,
+      "sx": 1012,
+      "sy": 35,
+      "sw": 540,
+      "sh": 864
+    },
+    "beast-eyes": {
+      "file": "beast-eyes.webp",
+      "w": 1400,
+      "h": 463,
+      "spacing": 0.6836,
+      "cx": 0.4661,
+      "cy": 0.4385
+    },
+    "blood-splash": {
+      "file": "blood-splash.webp",
+      "w": 476,
+      "h": 423
+    },
+    "blood-droplets": {
+      "file": "blood-droplets.webp",
+      "w": 573,
+      "h": 287
+    },
+    "blood-drop": {
+      "file": "blood-drop.webp",
+      "w": 29,
+      "h": 29
+    },
+    "blood-drip-1": {
+      "file": "blood-drip-1.webp",
+      "w": 32,
+      "h": 316
+    },
+    "blood-drip-2": {
+      "file": "blood-drip-2.webp",
+      "w": 31,
+      "h": 267
+    },
+    "blood-drip-3": {
+      "file": "blood-drip-3.webp",
+      "w": 32,
+      "h": 307
+    },
+    "blood-drip-4": {
+      "file": "blood-drip-4.webp",
+      "w": 34,
+      "h": 236
+    },
+    "encounter-dark": {
+      "file": "encounter-dark.webp",
+      "w": 1541,
+      "h": 313,
+      "base": 0.738,
+      "letters": [
+        0.0584,
+        0.1655,
+        0.2803,
+        0.3958,
+        0.5094,
+        0.6262,
+        0.7378,
+        0.8352,
+        0.9409
+      ]
+    },
+    "fog-back": {
+      "file": "fog-back.webp",
+      "w": 2048,
+      "h": 360
+    },
+    "fog-front": {
+      "file": "fog-front.webp",
+      "w": 2048,
+      "h": 360
+    }
+  }
+}

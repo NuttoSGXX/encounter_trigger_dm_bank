@@ -604,3 +604,18 @@
 @keyframes p-sweep { 0% { -webkit-mask-position: 130% 0; mask-position: 130% 0; } 48%, 100% { -webkit-mask-position: -35% 0; mask-position: -35% 0; } }
 .efx-pack-intro.leave .efx-pack-stage, .efx-pack-intro.leave .efx-shaker { opacity: 0; transition: opacity 1.2s ease; }
 @media (prefers-reduced-motion: reduce) { .efx-title-sweep.on { animation: none; } }
+
+/* =====================================================================
+   v0.9.1 DARK FANTASY ASSET PACK
+   ===================================================================== */
+.efx-dark-pack .efx-dim { background: #020305; }
+.d-frame { position: absolute; }
+.d-frame .p-img { position: absolute; will-change: transform, opacity; }
+.d-fog { position: absolute; left: 0; width: 200%; background-repeat: repeat-x; background-size: 50% 100%; will-change: transform, opacity; pointer-events: none; }
+.d-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 38%, rgba(0,0,0,.72) 100%); }
+.efx-dark-pack .efx-blackout { z-index: 2; }
+.efx-dark-pack .d-top { z-index: 3; }
+.efx-dark-pack .d-top .p-img { position: absolute; will-change: transform, opacity, clip-path; }
+.efx-dark-pack .efx-shaker { z-index: 4; }
+.efx-dark-pack .efx-title-img { filter: drop-shadow(0 6px 18px rgba(0,0,0,.8)); }
+.efx-dark-pack.leave .d-top, .efx-dark-pack.leave .efx-pack-stage { opacity: 0; transition: opacity 1.2s ease; }

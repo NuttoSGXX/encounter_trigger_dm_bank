@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1 — Dark Fantasy Asset Pack
+- **Dark Fantasy is now built from layered artwork**, driven by a timeline director: moonlit swamp plate, drifting fog, foliage that parts, two faint eyes, a beast half-seen behind the fog, a lunge at the camera, blackout, restrained blood, and a worn-metal ENCOUNTER title that bleeds. Running-text bands kept.
+- Assets live in `assets/dark/` (19 WebP + `pack.json`, about 1.2 MB), cut with `tools/extract_dark_pack.py` (white / green / black keying with despill; fog is generated procedurally).
+- Foliage pieces are edge-anchored (their outer edges are cut by the frame), so "closed" is done by scaling up from the screen edge rather than sliding inward.
+- Pack lookup is now generic (`critical` assets per style). Same resolution order: video > asset pack > still plate > procedural, with automatic fallback if a critical asset fails to load.
+- Docs: `docs/FX_TIMELINES.md` now covers both packs (inventory + timelines).
+- Magical and Default are unchanged.
+
+
 ## 0.9.0 — Magical Asset Pack
 - **Magical is now built from real artwork.** A timeline director animates pre-rendered, transparent assets: 6 hero orbs with ribbon trails spiral into an arcane core, burst, and a crystal ENCOUNTER title is revealed with a light sweep and sparkles. The running-text bands are kept.
 - Assets live in `assets/magical/` (17 transparent WebP + `pack.json`, about 1.6 MB). They were cut from generated sheets with `tools/extract_magical_pack.py`.

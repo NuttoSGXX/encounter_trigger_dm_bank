@@ -43,9 +43,9 @@ Players only ever see the cinematic and their own dice; they cannot open the lau
 |---|---|
 | **Default** | Fire. The title is typed letter by letter, slammed onto the screen, and glows like embers. |
 | **Magical** | Built from layered artwork: six crystal orbs with ribbon trails spiral into an arcane core, burst, and a crystal ENCOUNTER title is revealed with a light sweep and sparkles. Shimmering running text. (Procedural fallback if the art is missing.) |
-| **Dark Fantasy** | Moonlit fog, a clawed hand parts the brush, two eyes in the dark, a sudden lunge, black, blood, and a title that bleeds. Grey/black running text. |
+| **Dark Fantasy** | Built from layered artwork: moonlit swamp, fog, foliage that parts, two eyes in the dark, a beast that lunges at the camera, blackout, restrained blood, and a worn-metal ENCOUNTER title that bleeds. Grey/black running text. (Procedural fallback if the art is missing.) |
 
-Default and Dark Fantasy use procedural effects. Magical ships with its asset pack in `assets/magical/`. Asset inventory and timeline: `docs/FX_TIMELINES.md`.
+Default uses procedural effects. Magical and Dark Fantasy ship with asset packs in `assets/magical/` and `assets/dark/`. Asset inventory and timeline: `docs/FX_TIMELINES.md`.
 
 ## Bring your own art (optional)
 
@@ -53,7 +53,7 @@ For a look beyond what code can draw, you can feed a style your own artwork or v
 
 | Kind | Where | Notes |
 |---|---|---|
-| Asset pack (Magical) | `assets/magical/` + `pack.json` | Transparent WebP layers animated by a timeline director. Rebuild from new sheets with `tools/extract_magical_pack.py`. |
+| Asset pack (Magical, Dark Fantasy) | `assets/magical/`, `assets/dark/` + `pack.json` | Transparent WebP layers animated by a timeline director. Rebuild from new sheets with `tools/extract_magical_pack.py` / `tools/extract_dark_pack.py`. |
 | Video plate | `assets/video/default.webm`, `magical.webm`, `dark-fantasy.webm` | 1080p, 6-9 s, opaque. See `assets/README.md` for specs and cue timings. |
 | Still plate | `assets/plates/magical.(webp\|jpg\|png)`, `dark-fantasy.(webp\|jpg\|png)` | 16:9 artwork (for example from ChatGPT). The module animates it: reveal, push-in, fog, lunge, blood, typography. |
 
