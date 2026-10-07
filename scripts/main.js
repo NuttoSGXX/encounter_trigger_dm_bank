@@ -982,7 +982,7 @@ async function playDarkPack(style) {
     const fogBack = fogLayer("fog-back", .38, .5, .55, 110000);
 
     // --- BEAST (lurking) + EYES, aligned on the head anchor
-    const HEADS = { "beast-lurk": { bw: .46, x: .635, y: .47 }, "beast-lunge": { bw: .30, x: .46, y: .37 } };
+    const HEADS = { "beast-lurk": { bw: .46, x: .627, y: .565 }, "beast-lunge": { bw: .30, x: .465, y: .39 } };
     const beast = n => {
       if (!has(n)) return null; const h = HEADS[n], a = A[n], bw = h.bw * FW, bh = bw * a.h / a.w;
       return mk(n, `left:${HEAD.x - h.x * bw}px;top:${HEAD.y - h.y * bh}px;width:${bw}px;height:${bh}px;transform-origin:${h.x * 100}% ${h.y * 100}%;opacity:0;`);
@@ -991,7 +991,7 @@ async function playDarkPack(style) {
     const lunge = beast("beast-lunge");
     let eyes = null;
     if (has("beast-eyes")) {
-      const a = A["beast-eyes"], ew = (FW * 0.078) / a.spacing, eh = ew * a.h / a.w;
+      const a = A["beast-eyes"], ew = (FW * 0.058) / a.spacing, eh = ew * a.h / a.w;
       eyes = mk("beast-eyes", `left:${HEAD.x - a.cx * ew}px;top:${HEAD.y - a.cy * eh}px;width:${ew}px;height:${eh}px;transform-origin:${a.cx * 100}% ${a.cy * 100}%;opacity:0;`, "p-screen");
     }
     const fogFront = fogLayer("fog-front", .56, .5, .5, 80000);
@@ -1024,7 +1024,7 @@ async function playDarkPack(style) {
     const ease = "cubic-bezier(.65,0,1,.5)";
     if (lurk) anim(lurk, [{ opacity: .92 }, { opacity: 0 }], { duration: 120 });
     if (lunge) anim(lunge, [{ opacity: 0, transform: "scale(.8)", filter: "blur(0px)" }, { offset: .2, opacity: 1 }, { opacity: 1, transform: "scale(3.6)", filter: "blur(10px)" }], { duration: 220, easing: ease });
-    if (eyes) anim(eyes, [{ opacity: .95, transform: "scale(1)" }, { opacity: 1, transform: "scale(7)" }], { duration: 220, easing: ease });
+    if (eyes) anim(eyes, [{ opacity: .95, transform: "scale(1)" }, { opacity: 1, transform: "scale(4.6)" }], { duration: 220, easing: ease });
     if (!calmMode) anim(frame, [{ transform: "translate(0,0)" }, { transform: "translate(-8px,5px)" }, { transform: "translate(7px,-6px)" }, { transform: "translate(-5px,4px)" }, { transform: "translate(0,0)" }], { duration: 220 });
 
     if (!await ctx.until(3480)) return;                                  // IMPACT: blackout
@@ -1045,19 +1045,25 @@ async function playDarkPack(style) {
     if (!await ctx.until(3950)) return; el.classList.remove("black");    // darkness gives way
     if (!await ctx.until(4000)) return;                                  // TITLE
     const title = el.querySelector(".efx-title"); title.textContent = "";
-    const timg = document.createElement("img"); timg.src = src("encounter-dark"); timg.className = "efx-title-img"; timg.alt = "ENCOUNTER"; timg.draggable = false; timg.style.filter = "none"; title.appendChild(timg);
+    const T = A["encounter-dark"], tw = Math.min(W * .88, 1500), th = tw * T.h / T.w;
+    const lettersH = (T.base - (T.top || 0)) * th, gap = Math.max(16, lettersH * .14);
+    title.style.cssText = `display:block;position:relative;height:${lettersH + gap * 2}px;`;        // the box is the lettering only
+    const timg = document.createElement("img"); timg.src = src("encounter-dark"); timg.className = "efx-title-img"; timg.alt = "ENCOUNTER"; timg.draggable = false;
+    timg.style.cssText = `position:absolute;left:50%;margin-left:${-tw / 2}px;top:${gap - (T.top || 0) * th}px;width:${tw}px;height:${th}px;filter:none;`;
+    title.appendChild(timg);                                                                          // blood overhangs the lower band on purpose
     anim(timg, [{ opacity: 0, transform: "scale(1.12)", filter: "blur(10px)" }, { offset: .6, opacity: 1, filter: "blur(1px)" }, { opacity: 1, transform: "scale(1)", filter: "blur(0px)" }], { duration: 1000, easing: "cubic-bezier(.2,.8,.2,1)" });
 
-    if (!await ctx.until(4400)) return;                                  // blood begins to run from the lettering
-    const tr = timg.getBoundingClientRect(), T = A["encounter-dark"], lx = i => tr.left + T.letters[i] * tr.width, ly = tr.top + T.base * tr.height - 4;
-    [[1, "blood-drip-1", .8, 0], [3, "blood-drip-3", .62, 500], [5, "blood-drip-2", .7, 900], [7, "blood-drip-4", .5, 1300]].forEach(([li, n, hk, delay]) => {
-      if (!has(n)) return;
-      const a = A[n], dh = tr.height * hk, dw = dh * a.w / a.h;
-      const im = mk(n, `left:${lx(li) - dw / 2}px;top:${ly}px;width:${dw}px;height:${dh}px;clip-path:inset(0 0 100% 0);`, "", top);
-      anim(im, [{ clipPath: "inset(0 0 100% 0)" }, { offset: .75, clipPath: "inset(0 0 22% 0)" }, { clipPath: "inset(0 0 0% 0)" }], { delay, duration: 2800, easing: "cubic-bezier(.35,0,.6,1)" });
-      if (has("blood-drop") && li !== 5) {                                // a droplet breaks free and falls
-        const dd = mk("blood-drop", `left:${lx(li) - 9}px;top:${ly + dh - 6}px;width:18px;height:auto;opacity:0;`, "", top);
-        anim(dd, [{ opacity: 0, transform: "translateY(0)" }, { offset: .12, opacity: 1 }, { offset: .8, opacity: 1 }, { opacity: 0, transform: `translateY(${H * .3}px)` }], { delay: delay + 2400, duration: 1300, easing: "cubic-bezier(.5,0,1,.5)" });
+    if (!await ctx.until(4400)) return;                                  // the blood already on the letters keeps running
+    const tb = title.getBoundingClientRect(), x0 = tb.left + tb.width / 2 - tw / 2, y0 = tb.top + gap - (T.top || 0) * th;
+    const tips = (T.drips || []).filter(d => d.x > .1 && d.x < .95).slice(0, 4);                       // continue from real drip tips
+    ["blood-drip-1", "blood-drip-3", "blood-drip-2", "blood-drip-4"].forEach((n, i) => {
+      const tip = tips[i]; if (!tip || !has(n)) return;
+      const a = A[n], dw = tw * .0105, dh = dw * a.h / a.w, tx = x0 + tip.x * tw, ty = y0 + tip.y * th, delay = i * 450;
+      const im = mk(n, `left:${tx - dw / 2}px;top:${ty - dh * .04}px;width:${dw}px;height:${dh}px;clip-path:inset(0 0 100% 0);`, "", top);
+      anim(im, [{ clipPath: "inset(0 0 100% 0)" }, { offset: .75, clipPath: "inset(0 0 20% 0)" }, { clipPath: "inset(0 0 0% 0)" }], { delay, duration: 2600, easing: "cubic-bezier(.35,0,.6,1)" });
+      if (has("blood-drop") && i !== 2) {                                // a droplet breaks free and falls
+        const dd = mk("blood-drop", `left:${tx - 7}px;top:${ty + dh - 8}px;width:14px;height:auto;opacity:0;`, "", top);
+        anim(dd, [{ opacity: 0, transform: "translateY(0)" }, { offset: .12, opacity: 1 }, { offset: .8, opacity: 1 }, { opacity: 0, transform: `translateY(${H * .3}px)` }], { delay: delay + 2300, duration: 1300, easing: "cubic-bezier(.5,0,1,.5)" });
       }
     });
     if (!await ctx.until(4700)) return; el.classList.add("bands");        // running text

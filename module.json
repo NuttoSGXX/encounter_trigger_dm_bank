@@ -2,7 +2,7 @@
   "id": "encounter-fx",
   "title": "Encounter FX",
   "description": "Compact GM-only cinematic encounter starter for Foundry VTT v14 + dnd5e: floating launcher, Default / Magical / Dark Fantasy styles (Magical and Dark Fantasy built from layered artwork), simultaneous 3D d20 initiative and automatic combat start.",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
@@ -32,5 +32,5 @@
   "socket": true,
   "url": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank",
   "manifest": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/latest/download/module.json",
-  "download": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/download/v0.9.1/module.zip"
+  "download": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/download/v0.9.2/module.zip"
 }

@@ -89,8 +89,8 @@ Cut from the generated sheets with `tools/extract_dark_pack.py` (white / green /
 | 3480 | IMPACT: blackout. Foliage, beast, eyes and front fog are removed; the plate is dimmed. A blood splash and a droplet scatter appear on the darkness (restrained, fading by about 4.5 s). |
 | 3560 | GM client swaps the scene (screen is black). |
 | 3950 | Darkness gives way. |
-| 4000 | ENCOUNTER (worn metal with bleeding edges) fades in from a slight blur. |
-| 4400 | Four extra blood drips grow under selected letters (2.8 s each, staggered); droplets break free and fall. |
+| 4000 | ENCOUNTER (worn metal with bleeding edges) fades in from a slight blur. The lettering is centered on the screen between the two bands; the blood overhangs the lower band. |
+| 4400 | Four extra blood drips continue from the tips of the blood already on the letters (2.6 s each, staggered); droplets break free and fall. |
 | 4700 | Running-text bands appear. |
 | 7300 | Fade out (1.2 s). |
 | 7600 | Initiative dice appear. |
@@ -99,4 +99,4 @@ Cut from the generated sheets with `tools/extract_dark_pack.py` (white / green /
 Element budget: 1 plate + 2 fog + 2 beasts + 1 eyes + 3 foliage + 1 vignette during the first act; then 2 blood layers, 1 title, 4 drips and up to 3 droplets. All animation is transform/opacity/clip-path; only the lunge beast uses a short blur filter.
 
 ## Tuning
-Cues are at the top of `playPackIntro` (Magical) and `playDarkPack` (Dark Fantasy), and in `PACKS` in `scripts/main.js`. Head alignment (`HEADS`, `HEAD`) is in `playDarkPack`.
+Cues are at the top of `playPackIntro` (Magical) and `playDarkPack` (Dark Fantasy), and in `PACKS` in `scripts/main.js`. Head alignment (`HEADS`, `HEAD`, eye spacing `FW * 0.058`) is in `playDarkPack`: raise `HEADS["beast-lurk"].y` to move the eyes up relative to the wolf, lower it to move them down.

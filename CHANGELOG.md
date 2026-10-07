@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.2 — Dark Fantasy fixes (eyes, title, blood)
+- **Eyes now sit on the wolf's face.** They were too high and too wide (near the forehead / right ear). Re-calibrated against a real render: just above the muzzle, centered on the face, narrower set. Lunge pose and the eye flare during the lunge were re-matched too. The fur halo around the eyes is faded so it no longer reads as a second face.
+- **ENCOUNTER is centered by its lettering.** Before, the image box (letters + hanging blood) was centered, so the letters sat high and hugged the top band. Now the letters are centered on the screen and sit evenly between the two running-text bands; the blood hangs over the lower band on purpose.
+- **Blood continues from the real drips.** The extra drips now start at the tips of the blood already on the letters (detected from the title image) instead of at guessed positions. Removed the thin orange lines (green-key fringe): blood layers are re-keyed so edges stay crimson.
+- `tools/extract_dark_pack.py` updated (stricter despill, eye fade, title top/base/drip tips); `pack.json` carries the new data.
+- Repo workflow `release.yml` now zips `assets/` explicitly.
+
+
 ## 0.9.1 — Dark Fantasy Asset Pack
 - **Dark Fantasy is now built from layered artwork**, driven by a timeline director: moonlit swamp plate, drifting fog, foliage that parts, two faint eyes, a beast half-seen behind the fog, a lunge at the camera, blackout, restrained blood, and a worn-metal ENCOUNTER title that bleeds. Running-text bands kept.
 - Assets live in `assets/dark/` (19 WebP + `pack.json`, about 1.2 MB), cut with `tools/extract_dark_pack.py` (white / green / black keying with despill; fog is generated procedurally).

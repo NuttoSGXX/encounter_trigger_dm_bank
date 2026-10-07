@@ -24,7 +24,7 @@ def key_green(rgb):
     spill=g-np.maximum(r,b); a=1-np.clip((spill-0.12)/(0.55-0.12),0,1)
     bgc=np.array([0.04,0.97,0.05])
     col=np.where(a[...,None]>1e-3,(rgb-(1-a[...,None])*bgc)/np.maximum(a[...,None],1e-3),0).clip(0,1)
-    col[...,1]=np.minimum(col[...,1],(col[...,0]+col[...,2])/2)      # despill (average): no yellow fringe on blood
+    col[...,1]=np.minimum(col[...,1],col[...,2]+0.03)                  # despill: green may not exceed blue -> blood stays crimson, metal stays grey
     return col,a
 def key_black(rgb, black=0.03):
     m=rgb.max(2); a=np.clip((m-black)/(1-black),0,1)
@@ -68,12 +68,17 @@ cs=sorted(comps(a,grow=30,min_area=20000),key=lambda c:c[0]); print("beast comps
 for name,c in zip(["beast-lurk","beast-lunge"],cs):
     im,box=tight(col,a,c,maxh=900); save(name,im,sx=box[0],sy=box[1],sw=box[2]-box[0],sh=box[3]-box[1])
 
-# --- eyes (screen blend source: black bg)
-rgb=load("eyes"); col,a=key_black(rgb,0.04); ec=comps(a,grow=40,min_area=3000); c=(min(k[0] for k in ec),min(k[1] for k in ec),max(k[2] for k in ec),max(k[3] for k in ec),0)
-im,box=tight(col,a,c,maxw=1400)
+# --- eyes (screen blend source: black bg). Fur halo is faded so only the eyes read.
+rgb=load("eyes"); col,a=key_black(rgb,0.04)
 m=rgb.max(2); amber=(rgb[...,0]>0.55)&(rgb[...,1]>0.25)&(rgb[...,2]<0.35)&(m>0.5); lab,n=ndi.label(ndi.binary_dilation(amber,iterations=25))
 cents=sorted([ndi.center_of_mass(amber,lab,i) for i in range(1,n+1) if (lab==i).sum()>800],key=lambda p:p[1])
-(ly,lx),(ry,rx)=cents[0],cents[-1]; cw=box[2]-box[0]; chh=box[3]-box[1]
+(ly,lx),(ry,rx)=cents[0],cents[-1]
+yy,xx=np.mgrid[0:a.shape[0],0:a.shape[1]]; sig=95.0
+fall=np.maximum(np.exp(-((xx-lx)**2+(yy-ly)**2)/(2*sig**2)),np.exp(-((xx-rx)**2+(yy-ry)**2)/(2*sig**2)))
+a=a*(0.12+0.88*fall)
+ec=comps(a,thr=0.03,grow=40,min_area=3000); c=(min(k[0] for k in ec),min(k[1] for k in ec),max(k[2] for k in ec),max(k[3] for k in ec),0)
+im,box=tight(col,a,c,maxw=1400)
+cw=box[2]-box[0]; chh=box[3]-box[1]
 save("beast-eyes",im,spacing=round((rx-lx)/cw,4),cx=round(((lx+rx)/2-box[0])/cw,4),cy=round(((ly+ry)/2-box[1])/chh,4))
 
 # --- blood sheet (green key)
@@ -97,8 +102,18 @@ arr=np.asarray(im).astype(float)/255; al=arr[...,3]; sat=arr[...,:3].max(2)-arr[
 metal=(al>0.5)&(sat<0.22); rows=np.where(metal.sum(1)>im.width*0.02)[0]; base=(rows.max()+1)/im.height
 SRC_CENTERS=[215,380,557,735,910,1090,1262,1412,1575]          # E N C O U N T E R centers in the 1774px source image
 letters=[round((cx-box[0])/(box[2]-box[0]),4) for cx in SRC_CENTERS]
-print("title base",round(base,3),"letters",letters)
-save("encounter-dark",im,base=round(base,4),letters=letters)
+top=float(rows.min())/im.height
+red=(al>0.5)&(arr[...,0]>0.30)&(arr[...,1]<0.28)&(arr[...,2]<0.30)
+red[: int(rows.max()-3)]=False
+lab,n=ndi.label(ndi.binary_dilation(red,iterations=2)); tips=[]
+for i in range(1,n+1):
+    ys,xs=np.where((lab==i)&red)
+    if len(ys)<60: continue
+    ymax=ys.max(); sel=ys>ymax-6; tips.append((len(ys),float(xs[sel].mean())/im.width,float(ymax)/im.height))
+tips=sorted(tips,key=lambda t:t[2],reverse=True)
+drips=[{"x":round(x,4),"y":round(y,4)} for _,x,y in tips[:8]]
+print("title base",round(base,3),"top",round(top,3),"drip tips",len(drips))
+save("encounter-dark",im,base=round(base,4),top=round(top,4),letters=letters,drips=drips)
 
 # --- procedural fog layers (seamless horizontally)
 rng=np.random.default_rng(7)
