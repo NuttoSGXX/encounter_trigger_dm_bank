@@ -34,7 +34,7 @@ You can also open it from a macro: `game.modules.get("grim-encounter").api.open(
 3. NPCs and hidden combatants roll initiative silently.
 4. One 3D d20 appears per player character (with the character and player name under it). Before the roll every die **idles, spinning slowly in place**. Each player clicks their own die; everyone can roll at the same time. The GM can click any die or use **Roll All Remaining**.
 5. On click the die **spins faster where it is** (it does not bounce or tumble around the screen) and settles on the rolled face. Natural 20 / natural 1 get their own effect.
-6. The initiative order is announced and combat starts automatically. No confirmation button.
+6. The initiative order is announced as a row of tall cards (highest on the left, up to 15 across; players get a glowing red frame, NPCs a plain red one) and combat starts automatically. No confirmation button.
 7. `Esc` (GM) cancels the overlay if something goes wrong.
 
 Players only ever see the cinematic and their own dice; they cannot open the launcher.

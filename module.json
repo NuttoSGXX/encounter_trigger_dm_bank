@@ -2,7 +2,7 @@
   "id": "grim-encounter",
   "title": "Grim Encounter",
   "description": "GM-only cinematic Start Encounter for Foundry VTT v14 + dnd5e, in the Grim black-and-red style: floating launcher, Default / Magical / Dark Fantasy intros, simultaneous d20 initiative dice skinned with each player's Dice So Nice look (idle spin in place, no tumbling), and automatic combat start.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
@@ -39,5 +39,5 @@
   "socket": true,
   "url": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank",
   "manifest": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/latest/download/module.json",
-  "download": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/download/v1.0.0/module.zip"
+  "download": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/download/v1.1.0/module.zip"
 }

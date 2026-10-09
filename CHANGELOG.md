@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 — Initiative order cards
+- **The initiative summary is now a row of tall arched cards** (one per combatant, highest initiative on the left, lowest on the right), replacing the list. Each card shows the portrait, rank, name and the initiative total as a large number. Sizes adapt automatically so up to 15 combatants fit on one row (more still fit, just smaller).
+- **Players stand out:** player-character cards get a glowing, gently pulsing red frame; NPC/hostile cards get the same frame in plain dark red with no glow.
+- Cards rise in one after another from the left; the row is arched slightly for a more polished look.
+- Portrait uses the actor's artwork when it has one (taller, better suited to the card), otherwise the token image.
+- No buttons on the order screen (the GM's "Roll All Remaining" button is hidden once the order shows).
+
 ## 1.0.0 — Grim Encounter
 - **Renamed to Grim Encounter** (module id `grim-encounter`, was `encounter-fx`). Disable/remove the old module before enabling this one. Asset paths, socket channel and settings moved with the id; stylesheet is now `styles/grim-encounter.css`.
 - **Launcher restyled to match the Grim series** (Grim Almanac / Pulse / FateRoll): Crimson tokens (ink, iron, wine, blood, ember, bone), flat 2px-radius iron panel with a blood-red header rule, Grenze title, Cinzel labels, red primary button, red-lit selected states. Fonts are bundled in `fonts/` (OFL); the Google Fonts import is gone. Same compact floating panel: grab the header and drag.

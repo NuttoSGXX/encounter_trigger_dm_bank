@@ -401,9 +401,9 @@ async function finishOrder(wait) {
   const order = combat.combatants.contents
     .filter(c => !c.hidden && (SHOW_NPC_IN_ORDER || GM.pcs.has(c.id)))
     .sort((a, b) => (b.initiative ?? -999) - (a.initiative ?? -999))
-    .map(c => ({ name: c.name, img: c.img, total: Math.round((c.initiative ?? 0) * 100) / 100, pc: GM.pcs.has(c.id) }));
+    .map(c => ({ name: c.name, img: (c.actor?.img && !/mystery-man/.test(c.actor.img) ? c.actor.img : c.img), total: Math.round((c.initiative ?? 0) * 100) / 100, pc: GM.pcs.has(c.id) }));
   broadcast({ action: "order", order, style: GM.style });
-  await sleep(1400 + order.length * 180 + 3200);
+  await sleep(1800 + order.length * 110 + 3200);
   try { await combat.startCombat(); ui.combat?.activate?.(); } catch (e) { console.warn(`${ID} |`, e); }
   broadcast({ action: "close" });
 }
@@ -1579,10 +1579,13 @@ function playOrder({ order = [], style = "fire" } = {}) {
   let stage = stageEl();
   if (!stage) { showDice({ dice: [], style }); stage = stageEl(); }
   const el = stage.querySelector(".efx-order");
-  el.innerHTML = `<h2>INITIATIVE ORDER</h2>` + order.map((r, i) => `
-    <div class="efx-row${r.pc ? " pc" : ""}" style="--i:${i}"><span class="rk">${i + 1}</span>
+  const n = order.length;
+  el.innerHTML = `<h2>INITIATIVE ORDER</h2><div class="efx-cards" style="--n:${Math.max(1, n)}">` + order.map((r, i) => {
+    const dy = Math.round(-Math.sin((n > 1 ? i / (n - 1) : .5) * Math.PI) * 16);   // gentle arch across the row
+    return `<div class="efx-card${r.pc ? " pc" : ""}" style="--i:${i};--dy:${dy}px">
       <img src="${esc(r.img ?? "icons/svg/mystery-man.svg")}" alt="">
-      <span class="nm">${esc(r.name)}</span><span class="tot">${Math.round(r.total)}</span></div>`).join("");
+      <span class="rk">${i + 1}</span><span class="nm">${esc(r.name)}</span><span class="tot">${Math.round(r.total)}</span></div>`;
+  }).join("") + `</div>`;
   stage.classList.add("ordered");
   stage._sparks?.burst(innerWidth / 2, innerHeight * 0.3, { n: 90, speed: 700, life: [.5, 1.3], size: [2, 5], gravity: 450, colors: stage._colors });
 }
