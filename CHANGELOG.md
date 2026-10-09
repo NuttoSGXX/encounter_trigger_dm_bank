@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0 — Grim Encounter
+- **Renamed to Grim Encounter** (module id `grim-encounter`, was `encounter-fx`). Disable/remove the old module before enabling this one. Asset paths, socket channel and settings moved with the id; stylesheet is now `styles/grim-encounter.css`.
+- **Launcher restyled to match the Grim series** (Grim Almanac / Pulse / FateRoll): Crimson tokens (ink, iron, wine, blood, ember, bone), flat 2px-radius iron panel with a blood-red header rule, Grenze title, Cinzel labels, red primary button, red-lit selected states. Fonts are bundled in `fonts/` (OFL); the Google Fonts import is gone. Same compact floating panel: grab the header and drag.
+- **Dice So Nice integration.** Each player's initiative d20 is skinned with their own DSN appearance: colorset or custom colors, texture, material (metal / chrome sheen, glass translucency), outline, edge and number font. Falls back to the style's default die when DSN is off, the player has no saved look, or anything cannot be resolved. New per-user setting **Use Dice So Nice dice look**; `relationships.recommends` lists `dice-so-nice`. Debug helper: `api.dsn.debug()`.
+- **Dice behaviour.** Before the roll every die idles, spinning in place (one turn per ~5 s, tilted toward the viewer). Clicking speeds the spin up in place; when the result arrives the die spins (wind-up, then slowing) around its own axis and settles on the rolled face. The jump / bounce / scale pop and the random tumbling are removed; the die's screen position is unchanged during the whole roll (verified in a headless test). The result text area has a fixed height so nothing shifts when the number appears.
+- Faces are now drawn as edge + body (so an edge color is visible) with custom properties for texture / blend / opacity.
+- Unchanged: all v0.9.x intros and asset packs, GM-only access, native Combat integration, socket flow, `openLauncher`, `launch`, `ensureCombat`, `rollInit`, `gmRollOne`, `finishOrder`, `playIntro`, `showDice`, `playRolled`, `playOrder`.
+- Release workflow zips `fonts/` as well.
+
 ## 0.9.2 — Dark Fantasy fixes (eyes, title, blood)
 - **Eyes now sit on the wolf's face.** They were too high and too wide (near the forehead / right ear). Re-calibrated against a real render: just above the muzzle, centered on the face, narrower set. Lunge pose and the eye flare during the lunge were re-matched too. The fur halo around the eyes is faded so it no longer reads as a second face.
 - **ENCOUNTER is centered by its lettering.** Before, the image box (letters + hanging blood) was centered, so the letters sat high and hugged the top band. Now the letters are centered on the screen and sit evenly between the two running-text bands; the blood hangs over the lower band on purpose.

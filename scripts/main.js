@@ -1,11 +1,11 @@
 /**
- * Encounter FX  –  Foundry VTT V14 / dnd5e
+ * Grim Encounter  –  Foundry VTT V14 / dnd5e
  * GM-only launcher -> pick scene, party and FX style -> cinematic intro -> tokens added to the
  * real Combat -> one 3D d20 per player (simultaneous) -> NPCs roll silently -> order announced
  * -> combat starts automatically.
  * Styles: "fire" (Default), "magic" (Magical), "dark" (Dark Fantasy).
  */
-const ID = "encounter-fx";
+const ID = "grim-encounter";
 const SOCKET = `module.${ID}`;
 
 /* ------------------------------------------------------------------ */
@@ -137,6 +137,11 @@ Hooks.once("init", () => {
     hint: "Audio file played when an encounter starts (leave empty for none).",
     scope: "world", config: true, type: String, default: "", filePicker: "audio"
   });
+  game.settings.register(ID, "dsn", {
+    name: "Use Dice So Nice dice look",
+    hint: "Skin the initiative d20 with each player's own Dice So Nice appearance (colorset, texture, material, font). Needs the Dice So Nice module; otherwise the style's default die is used.",
+    scope: "client", config: true, type: Boolean, default: true
+  });
   game.settings.register(ID, "style", { scope: "client", config: false, type: String, default: "fire" });
   game.settings.register(ID, "panel", { scope: "client", config: false, type: Object, default: {} });
 });
@@ -146,12 +151,13 @@ Hooks.once("ready", () => {
   game.socket.on(SOCKET, onMessage);
   game.modules.get(ID).api = {
     open: openLauncher, launch,
+    dsn: { look: dsnLook, debug: dsnDebug },
     preview: { intro: playIntro, dice: showDice, rolled: playRolled, order: playOrder, close: closeAll, decorate: decorateLauncher }
   };
 });
 
 function openLauncher() {
-  if (!game.user.isGM) return ui.notifications.warn("Encounter FX: only the Game Master can start an encounter.");
+  if (!game.user.isGM) return ui.notifications.warn("Grim Encounter: only the Game Master can start an encounter.");
   EncounterPanel.toggle();
 }
 
@@ -160,7 +166,7 @@ Hooks.on("getSceneControlButtons", controls => {
   const tools = controls.tokens?.tools ?? controls.token?.tools;
   if (!tools) return;
   tools[ID] = {
-    name: ID, title: "Encounter FX", icon: "fa-solid fa-fire-flame-curved",
+    name: ID, title: "Grim Encounter", icon: "fa-solid fa-fire-flame-curved",
     order: Object.keys(tools).length + 1, button: true, visible: game.user.isGM,
     onChange: () => openLauncher()
   };
@@ -301,7 +307,7 @@ async function launch({ sceneId, actorIds = [], hostile = true, style = "fire" }
   if (!game.user.isGM) return;
   if (!STYLES[style]) style = "fire";
   const scene = game.scenes.get(sceneId);
-  if (!scene) return ui.notifications.error("Encounter FX: scene not found.");
+  if (!scene) return ui.notifications.error("Grim Encounter: scene not found.");
   const asset = await assetFor(style);
   const T = asset ? asset.t : STYLES[style].t, t0 = Date.now();
   GM.pcs = new Map(); GM.rolled = new Set(); GM.finishing = false; GM.combatId = null; GM.style = style;
@@ -337,7 +343,7 @@ async function launch({ sceneId, actorIds = [], hostile = true, style = "fire" }
     if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
   } catch (err) {
     console.error(`${ID} | combat setup failed`, err);
-    ui.notifications.error("Encounter FX: failed to set up the Combat (see console).");
+    ui.notifications.error("Grim Encounter: failed to set up the Combat (see console).");
     return broadcast({ action: "close" });
   }
 
@@ -1286,8 +1292,116 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const norm = a => { const l = Math.hypot(...a); return a.map(v => v / l); };
 
-function buildDie(die, L, { h = 5, s: sat = 78 } = {}) {
+/* ------------------------------------------------------------------ */
+/*  Dice So Nice look (read-only; DSN is optional)                     */
+/*  A player's DSN customisation lives on their User document under    */
+/*  flags["dice-so-nice"].appearance. We read it and paint the CSS die */
+/*  with it; nothing is ever written back to DSN, and every lookup is  */
+/*  guarded so a missing/changed DSN simply falls back to the default. */
+/* ------------------------------------------------------------------ */
+const DSN_ID = "dice-so-nice";
+const dsnOn = () => !!game.modules.get(DSN_ID)?.active && game.settings.get(ID, "dsn");
+const okColor = c => typeof c === "string" && c.trim() && (globalThis.CSS?.supports?.("color", c.trim()) ?? true);
+const firstStr = v => Array.isArray(v) ? v.find(x => typeof x === "string") : (typeof v === "string" ? v : v?.name);
+
+// Approximate looks for DSN's built-in colorsets, used only when the live colorset table cannot be reached.
+const DSN_PRESETS = {
+  white: { bg: ["#f2efe8"], fg: "#1b1b1b", outline: "#000000", edge: "#c9c4b8" },
+  black: { bg: ["#1a1a1c"], fg: "#f2efe8", outline: "#000000", edge: "#000000" },
+  fire: { bg: ["#f8d84f", "#f9b02d", "#f43c04", "#910200", "#4c1009"], fg: "#f8d84f", outline: "#000000", edge: "#910200" },
+  ice: { bg: ["#214fa3", "#3c6ac1", "#253f70", "#0b56e2", "#09317a"], fg: "#ffffff", outline: "#0b1d44", edge: "#2a4a8c" },
+  water: { bg: ["#1b5e8a", "#2f8fc7", "#0e3c5c"], fg: "#e8f6ff", outline: "#06202f", edge: "#2f8fc7" },
+  acid: { bg: ["#a6ff00", "#83b625", "#5ace04", "#69f006", "#b0f006"], fg: "#162300", outline: "#ffffff", edge: "#5ace04" },
+  poison: { bg: ["#313866", "#504099", "#66409e", "#934fc3", "#c949fc"], fg: "#ffffff", outline: "#1b0d33", edge: "#66409e" },
+  earth: { bg: ["#6b4a2b", "#8a6a3f", "#3f2a16"], fg: "#f5e6c8", outline: "#1d1208", edge: "#3f2a16" },
+  thunder: { bg: ["#ffd400", "#d6a800", "#7a5a00"], fg: "#1a1400", outline: "#ffffff", edge: "#7a5a00" },
+  lightning: { bg: ["#bfe4ff", "#7ab8ff", "#2f5fcf"], fg: "#0a1a3a", outline: "#ffffff", edge: "#2f5fcf" },
+  force: { bg: ["#7a1fb0", "#b34bf0", "#3d0a5c"], fg: "#ffffff", outline: "#1c0430", edge: "#b34bf0" },
+  psychic: { bg: ["#c23a8d", "#ff7ac8", "#5c1240"], fg: "#ffffff", outline: "#2b0620", edge: "#ff7ac8" },
+  necrotic: { bg: ["#1d2a1d", "#3c5a3c", "#0a120a"], fg: "#b8f0b8", outline: "#000000", edge: "#3c5a3c" },
+  radiant: { bg: ["#fff3b0", "#ffd75e", "#c9962e"], fg: "#3a2a00", outline: "#ffffff", edge: "#c9962e" },
+  bloodmoon: { bg: ["#8f171b", "#4a0e11", "#1d0508"], fg: "#eadfce", outline: "#000000", edge: "#a3161b" },
+  bronze: { bg: ["#b0793a", "#8a5a25", "#5a3a14"], fg: "#fff3d6", outline: "#2a1a08", edge: "#5a3a14" },
+  dragons: { bg: ["#8f171b", "#c24a1a", "#3a0a0a"], fg: "#ffd27a", outline: "#000000", edge: "#c24a1a" }
+};
+
+/** Best-effort access to DSN's live tables (names vary between DSN versions, hence the probing). */
+function dsnTables() {
+  const d3 = game.dice3d, C = d3?.constructor;
+  const pick = (...c) => c.find(x => x && typeof x === "object");
+  return {
+    colorsets: pick(d3?.exports?.COLORSETS, d3?.exports?.DiceColors?.colors, C?.COLORSETS, C?.ALL_COLORSETS),
+    textures: pick(C?.ALL_TEXTURE, d3?.exports?.TEXTURELIST, d3?.exports?.TEXTURES, C?.TEXTURELIST)
+  };
+}
+
+function dsnTextureSrc(name, tables) {
+  if (!name || name === "none") return null;
+  const t = tables.textures?.[name];
+  const src = typeof t === "string" ? t : (t?.source ?? t?.src ?? t?.composite);
+  return typeof src === "string" && src ? src : null;
+}
+
+/** Resolve a user's DSN d20 look. Returns null when DSN is off / the user has no saved appearance. */
+function dsnLook(userId) {
+  try {
+    if (!dsnOn()) return null;
+    const app = game.users.get(userId)?.flags?.[DSN_ID]?.appearance;
+    if (!app) return null;
+    const merged = { ...(app.global ?? {}) };
+    for (const [k, v] of Object.entries(app.d20 ?? {})) if (v !== undefined && v !== null && v !== "") merged[k] = v;
+    const tables = dsnTables();
+    let src = { bg: merged.diceColor, fg: merged.labelColor, outline: merged.outlineColor, edge: merged.edgeColor, texture: merged.texture, material: merged.material };
+    const cs = merged.colorset;
+    if (cs && cs !== "custom") {
+      const live = tables.colorsets?.[cs], pre = DSN_PRESETS[cs];
+      if (live) src = { bg: live.background ?? live.diceColor, fg: live.foreground ?? live.labelColor, outline: live.outline ?? live.outlineColor, edge: live.edge ?? live.edgeColor, texture: firstStr(live.texture) ?? merged.texture, material: live.material ?? merged.material };
+      else if (pre) src = { ...pre, texture: merged.texture, material: merged.material };
+    }
+    const bg = [].concat(src.bg ?? []).filter(okColor).slice(0, 5);
+    if (!bg.length) return null;
+    return {
+      cs: cs ?? "custom", bg,
+      fg: okColor(src.fg) ? src.fg : "#ffffff",
+      outline: okColor(src.outline) ? src.outline : "#000000",
+      edge: okColor(src.edge) ? src.edge : bg[0],
+      texture: dsnTextureSrc(firstStr(src.texture), tables),
+      material: String(src.material ?? "plastic"),
+      font: typeof merged.font === "string" && merged.font ? merged.font : null
+    };
+  } catch (e) { console.warn(`${ID} | Dice So Nice look unavailable`, e); return null; }
+}
+
+/** Console helper: game.modules.get("grim-encounter").api.dsn.debug(userId?) */
+function dsnDebug(userId = game.user.id) {
+  const d3 = game.dice3d, t = dsnTables();
+  return {
+    active: !!game.modules.get(DSN_ID)?.active, version: game.modules.get(DSN_ID)?.version, enabledInSettings: game.settings.get(ID, "dsn"),
+    dice3d: !!d3, dice3dKeys: d3 ? Object.keys(d3) : [], exportsKeys: d3?.exports ? Object.keys(d3.exports) : [],
+    colorsetTable: !!t.colorsets, textureTable: !!t.textures,
+    appearance: game.users.get(userId)?.flags?.[DSN_ID]?.appearance ?? null, look: dsnLook(userId)
+  };
+}
+
+const lightFor = (look, lit) => {
+  const mat = look?.material ?? "plastic";
+  const hi = mat === "metal" || mat === "chrome" ? 0.5 : 0.32, lo = mat === "metal" || mat === "chrome" ? 0.62 : 0.5;
+  return `linear-gradient(160deg,rgba(255,255,255,${(lit * hi).toFixed(3)}),rgba(0,0,0,${(lo - lit * 0.36).toFixed(3)}))`;
+};
+
+function buildDie(die, L, { h = 5, s: sat = 78 } = {}, look = null) {
   const sc = L / 2, H = L * Math.sqrt(3) / 2, light = norm([-0.4, -0.7, 1]), front = [];
+  const mat = look?.material;
+  const sheen = mat === "metal" || mat === "chrome"
+    ? `linear-gradient(115deg,transparent 28%,rgba(255,255,255,${mat === "chrome" ? .5 : .34}) 47%,transparent 64%),` : "";
+  const baseOf = i => !look ? null
+    : look.bg.length > 1 ? `linear-gradient(${120 + (i * 47) % 90}deg,${look.bg.join(",")})` : `linear-gradient(${look.bg[0]},${look.bg[0]})`;
+  if (look) {
+    die.style.setProperty("--num", look.fg);
+    die.style.setProperty("--nsh", `0 0 3px ${look.outline},0 0 1px ${look.outline},0 1px 2px ${look.outline}`);
+    if (look.font) die.style.setProperty("--nfont", `"${look.font.replace(/"/g, "")}",Georgia,serif`);
+    if (mat === "glass") die.style.setProperty("--bop", ".8");
+  }
   FACES.forEach((f, i) => {
     const [A, B, C] = f.map(k => VERTS[k].map(v => v * sc));
     const cen = [0, 1, 2].map(k => (A[k] + B[k] + C[k]) / 3);
@@ -1298,9 +1412,20 @@ function buildDie(die, L, { h = 5, s: sat = 78 } = {}) {
     const P = [0, 1, 2].map(k => cen[k] - ex[k] * (L / 2) - ey[k] * (2 * H / 3));
     const el = document.createElement("div"); el.className = "efx-face";
     const lit = Math.max(0, dot(n, light));
-    el.style.cssText = `width:${L}px;height:${H}px;--fs:${Math.round(L * 0.29)}px;` +
-      `background:linear-gradient(160deg,hsl(${h} ${sat}% ${26 + lit * 24}%),hsl(${h} ${Math.max(0, sat - 6)}% ${10 + lit * 12}%));` +
-      `transform:matrix3d(${[...ex, 0, ...ey, 0, ...n, 0, ...P, 1].join()})`;
+    let body, edge, blend = "";
+    if (look) {
+      const layers = [lightFor(look, lit)];
+      if (sheen) layers.push(sheen.slice(0, -1));
+      if (look.texture) layers.push(`url("${look.texture}") center/160% auto`);
+      layers.push(baseOf(i));
+      body = layers.join(","); edge = look.edge;
+      if (look.texture) blend = layers.map((_, k) => k === layers.length - 2 ? "soft-light" : "normal").join(",");
+    } else {
+      body = `linear-gradient(160deg,hsl(${h} ${sat}% ${26 + lit * 24}%),hsl(${h} ${Math.max(0, sat - 6)}% ${10 + lit * 12}%))`;
+      edge = `hsl(${h} ${Math.min(sat, 30)}% 7%)`;
+    }
+    el.style.cssText = `width:${L}px;height:${H}px;--fs:${Math.round(L * 0.29)}px;--edge:${edge};--body:${body};` +
+      (blend ? `--blend:${blend};` : "") + `transform:matrix3d(${[...ex, 0, ...ey, 0, ...n, 0, ...P, 1].join()})`;
     el.innerHTML = `<b>${i + 1}</b>`;
     die.appendChild(el);
     front.push([ex[0], ey[0], n[0], 0, ex[1], ey[1], n[1], 0, ex[2], ey[2], n[2], 0, 0, 0, 0, 1]);
@@ -1320,6 +1445,7 @@ function randMatrix() {
 /* ------------------------------------------------------------------ */
 /*  Dice stage: 1 die per player, everyone rolls at the same time      */
 /* ------------------------------------------------------------------ */
+const TILT = -18, IDLE_MS = 5200;   // idle spin: one turn per 5.2 s, tilted toward the viewer
 const stageEl = () => root().querySelector(".efx-dice-stage");
 
 function showDice({ dice = [], style = "fire" } = {}) {
@@ -1351,15 +1477,23 @@ function showDice({ dice = [], style = "fire" } = {}) {
     slot.innerHTML = `
       <div class="efx-aura"></div>
       <div class="efx-scene3d" style="width:${size}px;height:${size}px;perspective:${L * 9}px">
-        <div class="efx-bounce"><div class="efx-die idle ${mine ? "gm" : ""}" style="animation-delay:-${rand(0, 9).toFixed(2)}s"></div></div>
+        <div class="efx-spin"><div class="efx-die ${mine ? "gm" : ""}"></div></div>
       </div>
       <div class="efx-res">${mine ? '<span class="hint">Click the die</span>' : '<span class="hint dim">Waiting...</span>'}</div>
       <div class="efx-name">${esc(d.name)}</div>
       <div class="efx-player">${esc(d.player)}</div>`;
     row.appendChild(slot);
     const die = slot.querySelector(".efx-die");
-    const front = buildDie(die, L, S.die);
-    const info = { id: d.id, el: slot, die, bounce: slot.querySelector(".efx-bounce"), scene: slot.querySelector(".efx-scene3d"), front, prev: null, anim: null, pending: false, done: false };
+    const skin = d.owners?.includes(game.user.id) ? game.user.id : d.owners?.[0];
+    const look = skin ? dsnLook(skin) : null;
+    const front = buildDie(die, L, S.die, look);
+    const spin = slot.querySelector(".efx-spin");
+    const rest = randMatrix();                               // resting orientation while it idles
+    die.style.transform = `matrix3d(${rest.join()})`;
+    const idle = spin.animate([{ transform: `rotateX(${TILT}deg) rotateY(0deg)` }, { transform: `rotateX(${TILT}deg) rotateY(360deg)` }],
+      { duration: IDLE_MS, iterations: Infinity });
+    idle.currentTime = rand(0, IDLE_MS);
+    const info = { id: d.id, el: slot, die, spin, scene: slot.querySelector(".efx-scene3d"), front, prev: rest, idle, anim: null, pending: false, done: false, look };
     stage._slots.set(d.id, info);
     if (mine) slot.addEventListener("click", () => requestRoll(info));
   }
@@ -1378,6 +1512,7 @@ function requestRoll(info) {
   if (info.pending || info.done) return;
   info.pending = true;
   info.el.classList.add("charging");
+  try { info.idle.updatePlaybackRate(3.4); } catch (e) { /* ignore */ }   // spin faster in place while the roll is resolved
   if (game.user.isGM) gmRollOne(info.id, game.user.id);
   else game.socket.emit(SOCKET, { action: "rollRequest", id: info.id, userId: game.user.id });
 }
@@ -1386,34 +1521,37 @@ async function playRolled({ id, nat, total }) {
   const stage = stageEl(); const info = stage?._slots.get(id);
   if (!info || info.done) return;
   info.done = true; info.pending = false;
-  const { el, die, bounce, scene, front } = info, sparks = stage._sparks, k = stage._L / 100, colors = stage._colors;
+  const { el, die, spin, scene, front } = info, sparks = stage._sparks, colors = stage._colors;
   el.classList.remove("charging"); el.classList.add("rolling");
-  die.classList.remove("idle");
   const resEl = el.querySelector(".efx-res"); resEl.innerHTML = "";
   const rect = () => centerOf(scene);
   try { play(CONFIG.sounds?.dice); } catch (e) { /* ignore */ }
 
   const trail = setInterval(() => {
     const [x, y] = rect();
-    sparks.burst(x, y, { n: 4, speed: 180, life: [.3, .7], size: [1.5, 3.5], gravity: -80, colors });
-  }, 40);
+    sparks.burst(x, y, { n: 3, speed: 150, life: [.3, .6], size: [1.5, 3], gravity: -60, colors });
+  }, 55);
 
-  const target = front[nat - 1], prev = info.prev ?? randMatrix();
-  const kf = [prev, randMatrix(), randMatrix(), randMatrix(), randMatrix(), randMatrix(), target];
-  const offs = [0, .18, .36, .54, .7, .85, 1];
-  const anim = die.animate(kf.map((m, i) => ({ transform: `matrix3d(${m.join()})`, offset: offs[i], easing: i === 5 ? "cubic-bezier(.1,.8,.3,1)" : "linear" })),
-    { duration: 1700, fill: "forwards" });
+  // The die never leaves its spot: the wrapper spins it around its own vertical axis (picking up
+  // speed, then slowing down) while the die itself turns from its resting pose to the rolled face.
+  const target = front[nat - 1], D = 1900;
+  let a0 = 0;
+  try { a0 = (info.idle.effect.getComputedTiming().progress ?? 0) * 360; info.idle.cancel(); } catch (e) { /* ignore */ }
+  const wind = a0 + 300, endA = Math.ceil((wind + 3.2 * 360) / 360) * 360;
+  const anim = spin.animate([
+    { transform: `rotateX(${TILT}deg) rotateY(${a0}deg)`, offset: 0, easing: "cubic-bezier(.45,0,1,1)" },
+    { transform: `rotateX(${TILT - 10}deg) rotateY(${wind}deg)`, offset: .2, easing: "cubic-bezier(.12,.6,.22,1)" },
+    { transform: `rotateX(0deg) rotateY(${endA}deg)`, offset: 1 }
+  ], { duration: D, fill: "forwards" });
+  const turn = die.animate([{ transform: `matrix3d(${info.prev.join()})` }, { transform: `matrix3d(${target.join()})` }],
+    { duration: D, easing: "cubic-bezier(.25,.6,.25,1)", fill: "forwards" });
   info.anim?.cancel(); info.anim = anim;
-  bounce.animate([
-    { transform: "translateY(0) scale(.9)" },
-    { transform: `translateY(${-110 * k}px) scale(1.2)`, offset: .3 },
-    { transform: "translateY(0) scale(1)", offset: .6 },
-    { transform: `translateY(${-35 * k}px) scale(1.05)`, offset: .78 },
-    { transform: "translateY(0) scale(1)" }
-  ], { duration: 1700, easing: "ease-out" });
   await anim.finished.catch(() => {});
   clearInterval(trail);
   if (!stageEl()) return;
+  die.style.transform = `matrix3d(${target.join()})`; turn.cancel();
+  spin.style.transform = "none"; anim.cancel();
+  scene.animate([{ transform: "scale(1)" }, { transform: "scale(1.07)", offset: .4 }, { transform: "scale(1)" }], { duration: 380, easing: "ease-out" });
 
   const [cx, cy] = rect(), mod = Math.round(total) - nat;
   el.classList.remove("rolling"); el.classList.add("landed");

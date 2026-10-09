@@ -1,8 +1,8 @@
 {
-  "id": "encounter-fx",
-  "title": "Encounter FX",
-  "description": "Compact GM-only cinematic encounter starter for Foundry VTT v14 + dnd5e: floating launcher, Default / Magical / Dark Fantasy styles (Magical and Dark Fantasy built from layered artwork), simultaneous 3D d20 initiative and automatic combat start.",
-  "version": "0.9.2",
+  "id": "grim-encounter",
+  "title": "Grim Encounter",
+  "description": "GM-only cinematic Start Encounter for Foundry VTT v14 + dnd5e, in the Grim black-and-red style: floating launcher, Default / Magical / Dark Fantasy intros, simultaneous d20 initiative dice skinned with each player's Dice So Nice look (idle spin in place, no tumbling), and automatic combat start.",
+  "version": "1.0.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
@@ -16,7 +16,7 @@
     "scripts/main.js"
   ],
   "styles": [
-    "styles/encounter-fx.css"
+    "styles/grim-encounter.css"
   ],
   "relationships": {
     "systems": [
@@ -27,10 +27,17 @@
           "minimum": "6.0.0"
         }
       }
+    ],
+    "recommends": [
+      {
+        "id": "dice-so-nice",
+        "type": "module",
+        "reason": "Initiative dice use each player's Dice So Nice colorset, texture, material and font."
+      }
     ]
   },
   "socket": true,
   "url": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank",
   "manifest": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/latest/download/module.json",
-  "download": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/download/v0.9.2/module.zip"
+  "download": "https://github.com/NuttoSGXX/encounter_trigger_dm_bank/releases/download/v1.0.0/module.zip"
 }

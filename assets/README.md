@@ -1,4 +1,4 @@
-# Encounter FX – media plates
+# Grim Encounter – media plates
 
 Drop pre-rendered videos here (`assets/video/`). If a file exists, its style plays the video instead of the procedural FX.
 
